@@ -10,18 +10,31 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::latest()->get();
-        return view('categories.index', compact('categories'));
-    }
+        $type = $request->input('type');
+        $search = $request->input('search');
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return view('categories.create');
+        $query = Category::query();
+
+        if ($type) {
+            $query->where('type', $type);
+        }
+
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code_prefix', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $categories = $query->orderBy('type', 'asc')->orderBy('code_prefix', 'asc')->get();
+
+        $assetCount = Category::where('type', 'asset')->count();
+        $materialCount = Category::where('type', 'material')->count();
+
+        return view('categories.index', compact('categories', 'assetCount', 'materialCount'));
     }
 
     /**
@@ -29,45 +42,45 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'type' => 'required|in:asset,material',
+            'code_prefix' => 'nullable|string|max:20',
+            'description' => 'nullable|string|max:1000',
         ]);
 
-        Category::create($request->all());
+        Category::create($validated);
 
-        return redirect()->route('categories.index')->with('success', 'บันทึกประเภทเรียบร้อยแล้ว');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
+        return redirect()->route('categories.index')->with('success', 'บันทึกประเภทพัสดุมาตรฐานเรียบร้อยแล้ว');
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Category $category)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:asset,material',
+            'code_prefix' => 'nullable|string|max:20',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $category->update($validated);
+
+        return redirect()->route('categories.index')->with('success', 'แก้ไขข้อมูลประเภทพัสดุเรียบร้อยแล้ว');
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Category $category)
     {
-        //
+        if ($category->assets()->exists() || $category->materials()->exists()) {
+            return redirect()->route('categories.index')->with('error', 'ไม่สามารถลบได้ เนื่องจากมีข้อมูลครุภัณฑ์หรือวัสดุผูกติดกับประเภทนี้อยู่');
+        }
+
+        $category->delete();
+        return redirect()->route('categories.index')->with('success', 'ลบประเภทพัสดุเรียบร้อยแล้ว');
     }
 }

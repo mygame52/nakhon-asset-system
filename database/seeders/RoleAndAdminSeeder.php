@@ -15,10 +15,10 @@ class RoleAndAdminSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create Roles
-        $superAdminRole = Role::firstOrCreate(['name' => 'Super Admin']);
-        $officerRole = Role::firstOrCreate(['name' => 'Procurement Officer']);
-        $userRole = Role::firstOrCreate(['name' => 'General User']);
+        // Create 3 Standard Roles
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $procurementRole = Role::firstOrCreate(['name' => 'procurement']);
+        $userRole = Role::firstOrCreate(['name' => 'user']);
 
         // Create Default Admin User
         $admin = User::firstOrCreate(
@@ -30,7 +30,9 @@ class RoleAndAdminSeeder extends Seeder
             ]
         );
 
-        // Assign Role
-        $admin->assignRole($superAdminRole);
+        // Assign Admin Role
+        if (!$admin->hasRole('admin')) {
+            $admin->assignRole($adminRole);
+        }
     }
 }

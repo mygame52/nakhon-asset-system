@@ -1,0 +1,98 @@
+/* ==========================================================================
+   NAKHON ASSET SYSTEM - ASSET QR LABEL PRINT STYLES (ASSET-LABELS.CSS)
+   ========================================================================== */
+
+body.label-print {
+    font-family: 'Sarabun', sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f8fafc;
+}
+
+.label-container {
+    width: 8cm;
+    height: 4cm;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    background: white;
+    box-sizing: border-box;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.qr-code {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qr-code svg, .qr-code img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.info {
+    flex: 1;
+}
+
+.info .title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #4a148c;
+    margin-bottom: 4px;
+    line-height: 1.2;
+}
+
+.info .asset-name {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: #334155;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 4px;
+    line-height: 1.3;
+}
+
+.info .asset-code {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #0f172a;
+    letter-spacing: 0.5px;
+}
+
+.label-footer {
+    position: absolute;
+    bottom: 6px;
+    right: 12px;
+    font-size: 0.6rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* Grid Layout for Multiple Labels */
+.labels-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    body.label-print {
+        padding: 0;
+        background: transparent;
+    }
+    .label-container {
+        border: 1px solid #000;
+        box-shadow: none;
+        page-break-inside: avoid;
+    }
+}

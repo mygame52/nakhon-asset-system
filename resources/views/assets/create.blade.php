@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="card animate-fade-in">
-    <form action="{{ route('assets.store') }}" method="POST">
+    <form action="{{ route('assets.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
@@ -60,24 +60,36 @@
                     </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 20px;" x-data="{ isNew: false, selected: '' }" x-init="$watch('selected', val => { if(val === 'NEW') isNew = true })">
                     <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">สถานที่จัดเก็บ</label>
-                    <select name="location_id" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+                    <select name="location_id" x-show="!isNew" x-model="selected" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white;">
                         <option value="">เลือกสถานที่</option>
                         @foreach($locations as $location)
-                        <option value="{{ $location->id }}">{{ $location->name }} {{ $location->room_number }}</option>
+                        <option value="{{ $location->id }}">{{ $location->name }} {{ $location->room_number ? '('.$location->room_number.')' : '' }}</option>
                         @endforeach
+                        <option value="NEW" style="color: purple; font-weight: bold;">+ พิมพ์สถานที่ใหม่</option>
                     </select>
+                    
+                    <div x-show="isNew" style="display: none;" class="flex gap-2">
+                        <input type="text" name="location_name" placeholder="พิมพ์ชื่อสถานที่ใหม่..." style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;" :required="isNew">
+                        <button type="button" @click="isNew = false; selected = ''" class="px-4 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200">ยกเลิก</button>
+                    </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 20px;" x-data="{ isNew: false, selected: '' }" x-init="$watch('selected', val => { if(val === 'NEW') isNew = true })">
                     <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">หน่วยงานเจ้าของ</label>
-                    <select name="department_id" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+                    <select name="department_id" x-show="!isNew" x-model="selected" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white;">
                         <option value="">เลือกหน่วยงาน</option>
                         @foreach($departments as $dept)
                         <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                         @endforeach
+                        <option value="NEW" style="color: purple; font-weight: bold;">+ พิมพ์หน่วยงานใหม่</option>
                     </select>
+                    
+                    <div x-show="isNew" style="display: none;" class="flex gap-2">
+                        <input type="text" name="department_name" placeholder="พิมพ์ชื่อหน่วยงานใหม่..." style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;" :required="isNew">
+                        <button type="button" @click="isNew = false; selected = ''" class="px-4 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200">ยกเลิก</button>
+                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
@@ -96,8 +108,14 @@
                             <option value="ใช้งานปกติ">ใช้งานปกติ</option>
                             <option value="รอซ่อม">รอซ่อม</option>
                             <option value="ชำรุด">ชำรุด</option>
+                            <option value="เสื่อมสภาพ">เสื่อมสภาพ</option>
+                            <option value="จำหน่ายออก">จำหน่ายออก</option>
                         </select>
                     </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">รูปภาพครุภัณฑ์ <span style="font-size: 0.8rem; color: #888;">(รองรับ JPG, PNG, GIF ขนาดไม่เกิน 2MB)</span></label>
+                    <input type="file" name="image" accept="image/jpeg,image/png,image/gif" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white; cursor: pointer;">
                 </div>
             </div>
         </div>

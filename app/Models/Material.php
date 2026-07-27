@@ -15,7 +15,10 @@ class Material extends Model
         'name',
         'specs',
         'unit',
-        'balance',
+        'location_name',
+        'stock_qty',
+        'min_stock',
+        'max_stock',
         'unit_price',
         'category_id',
         'image'

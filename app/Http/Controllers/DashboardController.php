@@ -16,6 +16,14 @@ class DashboardController extends Controller
         $totalMaterials = Material::count();
         $recentAssets = Asset::with(['category', 'location'])->latest()->take(5)->get();
         
-        return view('dashboard', compact('totalAssets', 'totalMaterials', 'recentAssets'));
+        $statusCounts = [
+            'normal' => Asset::where('status', 'ใช้งานปกติ')->count(),
+            'repair' => Asset::where('status', 'รอซ่อม')->count(),
+            'broken' => Asset::where('status', 'ชำรุด')->count(),
+            'deteriorated' => Asset::where('status', 'เสื่อมสภาพ')->count(),
+            'disposed' => Asset::where('status', 'จำหน่ายออก')->count(),
+        ];
+        
+        return view('dashboard', compact('totalAssets', 'totalMaterials', 'recentAssets', 'statusCounts'));
     }
 }

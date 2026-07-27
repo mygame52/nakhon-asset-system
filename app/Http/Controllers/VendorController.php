@@ -10,18 +10,22 @@ class VendorController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $vendors = Vendor::all();
-        return view('vendors.index', compact('vendors'));
-    }
+        $search = $request->input('search');
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return view('vendors.create');
+        $vendors = Vendor::when($search, function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                      ->orWhere('contact_person', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%")
+                      ->orWhere('tax_id', 'like', "%{$search}%");
+            })
+            ->latest()
+            ->paginate(12);
+
+        $totalVendors = Vendor::count();
+
+        return view('vendors.index', compact('vendors', 'totalVendors'));
     }
 
     /**
@@ -29,30 +33,17 @@ class VendorController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'nullable|string',
+            'contact_person' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'tax_id' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:1000',
         ]);
 
-        Vendor::create($request->all());
+        Vendor::create($validated);
 
-        return redirect()->route('vendors.index')->with('success', 'บันทึกร้านค้าเรียบร้อยแล้ว');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
+        return redirect()->route('vendors.index')->with('success', 'บันทึกข้อมูลร้านค้าเรียบร้อยแล้ว');
     }
 
     /**
@@ -60,7 +51,18 @@ class VendorController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'contact_person' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'tax_id' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:1000',
+        ]);
+
+        $vendor = Vendor::findOrFail($id);
+        $vendor->update($validated);
+
+        return redirect()->route('vendors.index')->with('success', 'ปรับปรุงข้อมูลร้านค้าเรียบร้อยแล้ว');
     }
 
     /**
@@ -68,6 +70,9 @@ class VendorController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $vendor = Vendor::findOrFail($id);
+        $vendor->delete();
+
+        return redirect()->route('vendors.index')->with('success', 'ลบข้อมูลร้านค้าเรียบร้อยแล้ว');
     }
 }

@@ -10,7 +10,7 @@ class Category extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'type'];
+    protected $fillable = ['name', 'type', 'code_prefix', 'description'];
 
     public function assets(): HasMany
     {

@@ -10,18 +10,25 @@ class DepartmentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $departments = Department::all();
-        return view('departments.index', compact('departments'));
-    }
+        $search = $request->input('search');
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return view('departments.create');
+        $query = Department::whereNotNull('code')
+            ->where('code', '!=', '')
+            ->withCount(['users', 'assets']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+
+        $totalDepartments = (clone $query)->count();
+        $departments = $query->orderBy('code', 'asc')->paginate(12);
+
+        return view('departments.index', compact('departments', 'totalDepartments'));
     }
 
     /**
@@ -29,30 +36,15 @@ class DepartmentController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'nullable|string|max:50',
+            'code' => 'required|string|max:50',
+            'description' => 'nullable|string|max:1000',
         ]);
 
-        Department::create($request->all());
+        Department::create($validated);
 
-        return redirect()->route('departments.index')->with('success', 'บันทึกหน่วยงานเรียบร้อยแล้ว');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
+        return redirect()->route('departments.index')->with('success', 'บันทึกข้อมูลกลุ่มงาน/หน่วยงานเรียบร้อยแล้ว');
     }
 
     /**
@@ -60,7 +52,16 @@ class DepartmentController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $department = Department::findOrFail($id);
+        $department->update($validated);
+
+        return redirect()->route('departments.index')->with('success', 'ปรับปรุงข้อมูลกลุ่มงาน/หน่วยงานเรียบร้อยแล้ว');
     }
 
     /**
@@ -68,6 +69,13 @@ class DepartmentController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $department = Department::findOrFail($id);
+        
+        if ($department->assets()->count() > 0 || $department->users()->count() > 0) {
+            return redirect()->route('departments.index')->with('error', 'ไม่สามารถลบกลุ่มงานได้เนื่องจากมีบุคลากรหรือครุภัณฑ์ผูกอยู่อย่างน้อย 1 รายการ');
+        }
+
+        $department->delete();
+        return redirect()->route('departments.index')->with('success', 'ลบกลุ่มงาน/หน่วยงานเรียบร้อยแล้ว');
     }
 }

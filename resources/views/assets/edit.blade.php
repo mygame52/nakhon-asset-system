@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="card animate-fade-in">
-    <form action="{{ route('assets.update', $asset->id) }}" method="POST">
+    <form action="{{ route('assets.update', $asset->id) }}" method="POST" enctype="multipart/form-data">
         @csrf
         @method('PUT')
         
@@ -60,24 +60,76 @@
                     </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 20px;" x-data="{ isNew: false, selected: '{{ $asset->location_id ?? '' }}' }" x-init="$watch('selected', val => { if(val === 'NEW') isNew = true })">
                     <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">สถานที่จัดเก็บ</label>
-                    <select name="location_id" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+                    <select name="location_id" x-show="!isNew" x-model="selected" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white;">
+                        <option value="">เลือกสถานที่</option>
                         @foreach($locations as $location)
-                        <option value="{{ $location->id }}" {{ $asset->location_id == $location->id ? 'selected' : '' }}>{{ $location->name }}</option>
+                        <option value="{{ $location->id }}">{{ $location->name }} {{ $location->room_number ? '('.$location->room_number.')' : '' }}</option>
                         @endforeach
+                        <option value="NEW" style="color: purple; font-weight: bold;">+ พิมพ์สถานที่ใหม่</option>
                     </select>
+                    
+                    <div x-show="isNew" style="display: none;" class="flex gap-2">
+                        <input type="text" name="location_name" placeholder="พิมพ์ชื่อสถานที่ใหม่..." style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;" :required="isNew">
+                        <button type="button" @click="isNew = false; selected = '{{ $asset->location_id ?? '' }}'" class="px-4 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200">ยกเลิก</button>
+                    </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">สถานะปัจจุบัน</label>
-                    <select name="status" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
-                        <option value="ใช้งานปกติ" {{ $asset->status == 'ใช้งานปกติ' ? 'selected' : '' }}>ใช้งานปกติ</option>
-                        <option value="รอซ่อม" {{ $asset->status == 'รอซ่อม' ? 'selected' : '' }}>รอซ่อม</option>
-                        <option value="ชำรุด" {{ $asset->status == 'ชำรุด' ? 'selected' : '' }}>ชำรุด</option>
-                        <option value="เสื่อมสภาพ" {{ $asset->status == 'เสื่อมสภาพ' ? 'selected' : '' }}>เสื่อมสภาพ</option>
-                        <option value="จำหน่ายออก" {{ $asset->status == 'จำหน่ายออก' ? 'selected' : '' }}>จำหน่ายออก</option>
+                <div style="margin-bottom: 20px;" x-data="{ isNew: false, selected: '{{ $asset->department_id ?? '' }}' }" x-init="$watch('selected', val => { if(val === 'NEW') isNew = true })">
+                    <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">หน่วยงาน/แผนกที่รับผิดชอบ</label>
+                    <select name="department_id" x-show="!isNew" x-model="selected" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white;">
+                        <option value="">เลือกหน่วยงาน</option>
+                        @foreach($departments as $dept)
+                        <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                        @endforeach
+                        <option value="NEW" style="color: purple; font-weight: bold;">+ พิมพ์หน่วยงานใหม่</option>
                     </select>
+                    
+                    <div x-show="isNew" style="display: none;" class="flex gap-2">
+                        <input type="text" name="department_name" placeholder="พิมพ์ชื่อหน่วยงานใหม่..." style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;" :required="isNew">
+                        <button type="button" @click="isNew = false; selected = '{{ $asset->department_id ?? '' }}'" class="px-4 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200">ยกเลิก</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">วิธีการได้มา</label>
+                        <select name="acquisition_type" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+                            <option value="">เลือกวิธีการได้มา</option>
+                            <option value="ซื้อ" {{ $asset->acquisition_type == 'ซื้อ' ? 'selected' : '' }}>ซื้อ</option>
+                            <option value="จ้าง" {{ $asset->acquisition_type == 'จ้าง' ? 'selected' : '' }}>จ้าง</option>
+                            <option value="บริจาค" {{ $asset->acquisition_type == 'บริจาค' ? 'selected' : '' }}>ได้รับบริจาค</option>
+                            <option value="อื่นๆ" {{ (!in_array($asset->acquisition_type, ['ซื้อ', 'จ้าง', 'บริจาค']) && !empty($asset->acquisition_type)) || $asset->acquisition_type == 'อื่นๆ' ? 'selected' : '' }}>อื่นๆ</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">สถานะปัจจุบัน</label>
+                        <select name="status" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+                            <option value="ใช้งานปกติ" {{ $asset->status == 'ใช้งานปกติ' ? 'selected' : '' }}>ใช้งานปกติ</option>
+                            <option value="รอซ่อม" {{ $asset->status == 'รอซ่อม' ? 'selected' : '' }}>รอซ่อม</option>
+                            <option value="ชำรุด" {{ $asset->status == 'ชำรุด' ? 'selected' : '' }}>ชำรุด</option>
+                            <option value="เสื่อมสภาพ" {{ $asset->status == 'เสื่อมสภาพ' ? 'selected' : '' }}>เสื่อมสภาพ</option>
+                            <option value="จำหน่ายออก" {{ $asset->status == 'จำหน่ายออก' ? 'selected' : '' }}>จำหน่ายออก</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">รูปภาพครุภัณฑ์ <span style="font-size: 0.8rem; color: #888;">(รองรับ JPG, PNG, GIF ขนาดไม่เกิน 2MB)</span></label>
+                    
+                    @if($asset->image)
+                        <div class="mb-4 flex items-start gap-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                            <div class="w-24 h-24 rounded-lg overflow-hidden border border-gray-300 shadow-sm flex-shrink-0 bg-white">
+                                <img src="{{ asset('storage/' . $asset->image) }}" class="w-full h-full object-cover" alt="รูปภาพปัจจุบัน">
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-700 mb-1">รูปภาพปัจจุบัน</p>
+                                <p class="text-xs text-gray-500">หากอัปโหลดไฟล์ใหม่ รูปภาพเดิมจะถูกลบและแทนที่ทันที</p>
+                            </div>
+                        </div>
+                    @endif
+                    
+                    <input type="file" name="image" accept="image/jpeg,image/png,image/gif" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: white; cursor: pointer;">
                 </div>
             </div>
         </div>

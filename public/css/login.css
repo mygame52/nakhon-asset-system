@@ -1,0 +1,171 @@
+/* ==========================================================================
+   NAKHON ASSET SYSTEM - MODERN LOGIN THEME (LOGIN.CSS)
+   ========================================================================== */
+
+:root {
+    --primary-color: #4a148c;
+    --accent-color: #ffd700;
+}
+
+body.login-page {
+    font-family: 'Sarabun', sans-serif;
+    background: radial-gradient(circle at 50% 20%, #2a0845 0%, #12001c 80%);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Background Glow Orbs */
+body.login-page::before {
+    content: '';
+    position: absolute;
+    top: -10%;
+    left: 20%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.35) 0%, rgba(0, 0, 0, 0) 70%);
+    border-radius: 50%;
+    filter: blur(50px);
+    pointer-events: none;
+}
+
+body.login-page::after {
+    content: '';
+    position: absolute;
+    bottom: -10%;
+    right: 20%;
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, rgba(0, 0, 0, 0) 70%);
+    border-radius: 50%;
+    filter: blur(60px);
+    pointer-events: none;
+}
+
+.login-card {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 44px 40px;
+    border-radius: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
+    width: 100%;
+    max-width: 450px;
+    text-align: center;
+    position: relative;
+    z-index: 10;
+    box-sizing: border-box;
+}
+
+.logo-container {
+    width: 135px;
+    height: 135px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 22px;
+    box-shadow: 0 14px 35px rgba(74, 20, 140, 0.45);
+    border: 3px solid rgba(255, 215, 0, 0.8);
+    overflow: hidden;
+    background: #2a0845;
+    padding: 2px;
+    box-sizing: border-box;
+    transition: transform 0.3s ease;
+}
+
+.logo-container:hover {
+    transform: scale(1.04);
+}
+
+.logo-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.login-card h2 {
+    color: #2a0845;
+    font-family: 'Prompt', 'Sarabun', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.login-card p.subtitle {
+    color: #64748b;
+    font-size: 0.9rem;
+    margin-bottom: 28px;
+    font-weight: 500;
+}
+
+.form-group {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #334155;
+}
+
+.input-control {
+    width: 100%;
+    padding: 13px 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 0.95rem;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: inherit;
+}
+
+.input-control:focus {
+    background: #ffffff;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
+.btn-login {
+    background: linear-gradient(135deg, #4a148c 0%, #2a0845 100%);
+    color: white;
+    border: none;
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Prompt', 'Sarabun', sans-serif;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    margin-top: 12px;
+    box-shadow: 0 10px 20px rgba(42, 8, 69, 0.3);
+}
+
+.btn-login:hover {
+    background: linear-gradient(135deg, #5c1bb1 0%, #390b5e 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(42, 8, 69, 0.4);
+}
+
+.btn-login:active {
+    transform: translateY(0);
+}
+
+.error-text {
+    color: #f43f5e;
+    font-size: 0.8rem;
+    margin-top: 6px;
+    font-weight: 500;
+}

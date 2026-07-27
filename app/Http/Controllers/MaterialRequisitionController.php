@@ -131,10 +131,78 @@ class MaterialRequisitionController extends Controller
         return view('requisitions.show', compact('requisition'));
     }
 
+    public function officerApproveItem(Request $request, RequisitionItem $item)
+    {
+        $user = Auth::user();
+        if (!$user->hasAnyRole(['procurement', 'admin'])) {
+            return back()->with('error', 'เฉพาะเจ้าหน้าที่พัสดุหรือหัวหน้าพัสดุเท่านั้นที่มีสิทธิ์ดำเนินการในขั้นตอนนี้');
+        }
+
+        if ($item->status !== 'pending') {
+            return back()->with('error', 'รายการนี้ผ่านการดำเนินการในขั้นตอนเจ้าหน้าที่พัสดุไปแล้ว');
+        }
+
+        $validated = $request->validate([
+            'approved_qty' => 'required|integer|min:1',
+            'officer_note' => 'nullable|string|max:1000',
+        ]);
+
+        $material = $item->material;
+
+        if ($material->stock_qty < $validated['approved_qty']) {
+            return back()->with('error', 'จำนวนวัสดุในสต็อกคงเหลือไม่เพียงพอ (คงเหลือ: ' . number_format($material->stock_qty) . ' ' . $material->unit . ')');
+        }
+
+        if ($validated['approved_qty'] != $item->requested_qty && empty($validated['officer_note'])) {
+            return back()->with('error', 'การปรับเปลี่ยนจำนวนที่อนุมัติ จำเป็นต้องระบุเหตุผลในช่องหมายเหตุ');
+        }
+
+        DB::transaction(function () use ($item, $validated, $material) {
+            $item->update([
+                'approved_qty' => $validated['approved_qty'],
+                'status' => 'officer_approved',
+                'officer_note' => $validated['officer_note'] ?? null,
+                'officer_approved_by' => Auth::id(),
+                'officer_approved_at' => now(),
+            ]);
+
+            $this->updateParentStatus($item->requisition);
+
+            // Send Notification to Head of Procurement (admin role)
+            $admins = User::role('admin')->get();
+            foreach ($admins as $adminUser) {
+                Notification::send(
+                    $adminUser->id,
+                    'รอหัวหน้าพัสดุอนุมัติ (' . $item->requisition->requisition_code . ')',
+                    'เจ้าหน้าที่พัสดุอนุมัติรายการ ' . $material->name . ' แล้ว รอท่านพิจารณาอนุมัติขั้นสุดท้าย',
+                    route('requisitions.show', $item->requisition_id)
+                );
+            }
+        });
+
+        return back()->with('success', 'เจ้าหน้าที่พัสดุอนุมัติรายการเรียบร้อยแล้ว (ส่งต่อให้หัวหน้าพัสดุพิจารณาอนุมัติขั้นสุดท้าย)');
+    }
+
     public function approveItem(Request $request, RequisitionItem $item)
     {
-        if ($item->status !== 'pending') {
-            return back()->with('error', 'รายการนี้ได้รับการดำเนินการไปแล้ว');
+        $user = Auth::user();
+        
+        // Strict check: Head of Procurement must have admin role
+        if (!$user->hasRole('admin')) {
+            return back()->with('error', 'สิทธิ์การอนุมัติขั้นสุดท้ายเป็นของหัวหน้าพัสดุ (Admin) เท่านั้น');
+        }
+
+        // STRICT CHECK: Item MUST be officer_approved first!
+        if ($item->status === 'pending') {
+            return back()->with('error', 'หัวหน้าพัสดุจะอนุมัติได้ ก็ต่อเมื่อผ่านการอนุมัติจากเจ้าหน้าที่พัสดุเรียบร้อยแล้วเท่านั้น');
+        }
+
+        if ($item->status === 'approved') {
+            return back()->with('error', 'รายการนี้ได้รับการอนุมัติขั้นสุดท้ายไปเรียบร้อยแล้ว');
+        }
+
+        if ($item->status === 'rejected') {
+            return back()->with('error', 'รายการนี้ถูกปฏิเสธไปแล้ว');
         }
 
         $validated = $request->validate([
@@ -146,10 +214,6 @@ class MaterialRequisitionController extends Controller
 
         if ($material->stock_qty < $validated['approved_qty']) {
             return back()->with('error', 'จำนวนวัสดุในสต็อกคงเหลือไม่เพียงพอ (คงเหลือ: ' . number_format($material->stock_qty) . ' ' . $material->unit . ')');
-        }
-
-        if ($validated['approved_qty'] != $item->requested_qty && empty($validated['admin_note'])) {
-            return back()->with('error', 'การปรับเปลี่ยนจำนวนที่อนุมัติ จำเป็นต้องระบุเหตุผลในช่องหมายเหตุ');
         }
 
         DB::transaction(function () use ($item, $material, $validated) {
@@ -183,32 +247,46 @@ class MaterialRequisitionController extends Controller
             // Send Notification to user
             Notification::send(
                 $item->requisition->user_id,
-                'อนุมัติรายการเบิกวัสดุ (' . $item->requisition->requisition_code . ')',
-                'รายการ ' . $material->name . ' ได้รับการอนุมัติจำนวน ' . number_format($validated['approved_qty']) . ' ' . $material->unit,
+                'อนุมัติเบิกวัสดุเรียบร้อย (' . $item->requisition->requisition_code . ')',
+                'รายการ ' . $material->name . ' ได้รับการอนุมัติขั้นสุดท้ายจากหัวหน้าพัสดุจำนวน ' . number_format($validated['approved_qty']) . ' ' . $material->unit,
                 route('requisitions.show', $item->requisition_id)
             );
         });
 
-        return back()->with('success', 'อนุมัติรายการวัสดุเรียบร้อยแล้ว');
+        return back()->with('success', 'หัวหน้าพัสดุอนุมัติรายการขั้นสุดท้ายเรียบร้อยแล้ว');
     }
 
     public function rejectItem(Request $request, RequisitionItem $item)
     {
-        if ($item->status !== 'pending') {
-            return back()->with('error', 'รายการนี้ได้รับการดำเนินการไปแล้ว');
+        $user = Auth::user();
+        if (!$user->hasAnyRole(['admin', 'procurement'])) {
+            return back()->with('error', 'คุณไม่มีสิทธิ์ปฏิเสธรายการเบิก');
+        }
+
+        if ($item->status === 'approved') {
+            return back()->with('error', 'รายการนี้อนุมัติสมบูรณ์ไปแล้ว ไม่สามารถปฏิเสธได้');
         }
 
         $validated = $request->validate([
             'admin_note' => 'required|string|max:1000',
         ]);
 
-        DB::transaction(function () use ($item, $validated) {
-            $item->update([
+        DB::transaction(function () use ($item, $validated, $user) {
+            $updateData = [
                 'status' => 'rejected',
                 'admin_note' => $validated['admin_note'],
-                'approved_by' => Auth::id(),
-                'approved_at' => now(),
-            ]);
+            ];
+
+            if ($user->hasRole('admin')) {
+                $updateData['approved_by'] = $user->id;
+                $updateData['approved_at'] = now();
+            } else {
+                $updateData['officer_approved_by'] = $user->id;
+                $updateData['officer_approved_at'] = now();
+                $updateData['officer_note'] = $validated['admin_note'];
+            }
+
+            $item->update($updateData);
 
             $this->updateParentStatus($item->requisition);
 
@@ -229,10 +307,11 @@ class MaterialRequisitionController extends Controller
         $items = $requisition->items;
         $totalItems = $items->count();
         $approvedCount = $items->where('status', 'approved')->count();
+        $officerApprovedCount = $items->where('status', 'officer_approved')->count();
         $rejectedCount = $items->where('status', 'rejected')->count();
         $pendingCount = $items->where('status', 'pending')->count();
 
-        if ($pendingCount === 0) {
+        if ($pendingCount === 0 && $officerApprovedCount === 0) {
             if ($approvedCount === $totalItems) {
                 $requisition->status = 'approved';
             } elseif ($rejectedCount === $totalItems) {
@@ -240,6 +319,8 @@ class MaterialRequisitionController extends Controller
             } else {
                 $requisition->status = 'partial';
             }
+        } elseif ($officerApprovedCount > 0) {
+            $requisition->status = 'officer_approved';
         } else {
             if ($approvedCount > 0 || $rejectedCount > 0) {
                 $requisition->status = 'partial';

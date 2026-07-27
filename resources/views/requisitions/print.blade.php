@@ -20,11 +20,17 @@
         $reqMonth = $thMonths[$reqDate->month] ?? '';
         $reqYear = $reqDate->year + 543;
 
+        $officerItem = $requisition->items->whereNotNull('officer_approved_by')->first();
+        $headItem = $requisition->items->whereNotNull('approved_by')->first();
+        $officerUser = $officerItem ? $officerItem->officerApprover : null;
+        $headUser = $headItem ? $headItem->approver : null;
+
+        $approvedAt = $headItem ? $headItem->approved_at : null;
         $appDay = '';
         $appMonth = '';
         $appYear = '';
-        if ($requisition->approved_at) {
-            $appDate = \Carbon\Carbon::parse($requisition->approved_at);
+        if ($approvedAt) {
+            $appDate = \Carbon\Carbon::parse($approvedAt);
             $appDay = $appDate->format('j');
             $appMonth = $thMonths[$appDate->month] ?? '';
             $appYear = $appDate->year + 543;
@@ -80,7 +86,7 @@
                     <td class="text-center">
                         {{ number_format($item->approved_qty ?? $item->requested_qty) }} {{ $item->material->unit ?? '' }}
                     </td>
-                    <td class="text-center">{{ $item->admin_note ?? ($item->status == 'rejected' ? 'ไม่อนุมัติ' : '') }}</td>
+                    <td class="text-center">{{ $item->admin_note ?? $item->officer_note ?? ($item->status == 'rejected' ? 'ไม่อนุมัติ' : '') }}</td>
                 </tr>
                 @endforeach
 
@@ -99,28 +105,35 @@
         <div class="footer-section">
             <!-- Left Side -->
             <div class="footer-left" style="display: flex; flex-direction: column; align-items: flex-start;">
-                <div style="margin-left: 20px;">มีเบิกให้<span class="dots" style="min-width: 90px;">{{ $requisition->items->where('status', 'approved')->count() }}</span>รายการ</div>
+                <div style="margin-left: 20px;">มีเบิกให้<span class="dots" style="min-width: 90px;">{{ $requisition->items->whereIn('status', ['officer_approved', 'approved'])->count() }}</span>รายการ</div>
                 <div style="margin-top: 10px; margin-left: 20px;">ค้างเบิก<span class="dots" style="min-width: 90px;">{{ $requisition->items->where('status', '!=', 'approved')->count() ?: '-' }}</span>รายการ</div>
                 
-                <!-- เจ้าหน้าที่จ่าย (Centered Block - No Position) -->
+                <!-- เจ้าหน้าที่จ่าย (เจ้าหน้าที่พัสดุ Stage 1) -->
                 <div style="margin-top: 15px; display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
                     <div>
                         (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 140px; vertical-align: bottom;" class="dots">
-                            @if($requisition->approver && $requisition->approver->signature)
-                                <img src="{{ asset('storage/' . $requisition->approver->signature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 120px; object-fit: contain; pointer-events: none;" alt="Signature">
+                            @if($officerUser && $officerUser->signature)
+                                <img src="{{ asset('storage/' . $officerUser->signature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 120px; object-fit: contain; pointer-events: none;" alt="Officer Signature">
                             @endif
                             &nbsp;
                         </span>เจ้าหน้าที่จ่าย
                     </div>
-                    <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $requisition->approver->name ?? '........................................................' }} )</div>
+                    <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $officerUser->name ?? '........................................................' }} )</div>
                 </div>
 
                 <div style="margin-top: 25px; margin-left: 20px;" class="bold-text">อนุญาตให้เบิกได้</div>
                 
-                <!-- ผู้สั่งจ่าย (Centered Block) -->
+                <!-- ผู้สั่งจ่าย (หัวหน้าเจ้าหน้าที่ / หัวหน้าพัสดุ Stage 2 - Admin) -->
                 <div style="margin-top: 10px; display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
-                    <div>(ลงชื่อ)<span class="dots" style="min-width: 170px;"></span>ผู้สั่งจ่าย</div>
-                    <div style="margin-top: 1px; width: 100%; text-align: center;">( ........................................................ )</div>
+                    <div>
+                        (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 140px; vertical-align: bottom;" class="dots">
+                            @if($headUser && $headUser->signature)
+                                <img src="{{ asset('storage/' . $headUser->signature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 120px; object-fit: contain; pointer-events: none;" alt="Head Signature">
+                            @endif
+                            &nbsp;
+                        </span>ผู้สั่งจ่าย
+                    </div>
+                    <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $headUser->name ?? '........................................................' }} )</div>
                     <div style="margin-top: 1px; width: 100%; text-align: center;">ตำแหน่ง<span class="dots" style="min-width: 170px; text-align: center;">หัวหน้าเจ้าหน้าที่</span></div>
                 </div>
                 
@@ -130,7 +143,7 @@
             <!-- Right Side -->
             <div class="footer-right" style="display: flex; flex-direction: column; align-items: flex-end;">
                 <div style="margin-right: 20px; display: flex; flex-direction: column; align-items: flex-start;">
-                    <!-- ผู้เบิก (Centered Block + มอบให้ผู้รับแทน) -->
+                    <!-- ผู้เบิก -->
                     <div style="display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
                         <div>
                             (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="dots">
@@ -148,7 +161,7 @@
 
                     <div style="margin-top: 20px; margin-left: 20px;" class="bold-text">ได้รับของครบถ้วนถูกต้องแล้ว</div>
                     
-                    <!-- ผู้รับของ (Centered Block) -->
+                    <!-- ผู้รับของ -->
                     <div style="margin-top: 8px; display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
                         <div>
                             (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="dots">

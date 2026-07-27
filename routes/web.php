@@ -44,10 +44,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('assets/print-labels', [AssetController::class, 'printLabels'])->name('assets.print-labels');
         Route::get('assets/{asset}/print', [AssetController::class, 'printLabel'])->name('assets.print');
         
+        Route::post('requisitions/items/{item}/officer-approve', [MaterialRequisitionController::class, 'officerApproveItem'])->name('requisitions.officer-approve-item');
         Route::post('requisitions/items/{item}/approve', [MaterialRequisitionController::class, 'approveItem'])->name('requisitions.approve-item');
         Route::post('requisitions/items/{item}/reject', [MaterialRequisitionController::class, 'rejectItem'])->name('requisitions.reject-item');
 
         // Material Stock Cards Actions (บันทึกรับเข้า & ตั้งค่าอย่างต่ำ/สูง)
+        Route::post('materials/generate-ai-specs', [\App\Http\Controllers\MaterialAiController::class, 'generateSpecs'])->name('materials.generate-ai-specs');
         Route::post('stock-cards/{material}/stock-in', [\App\Http\Controllers\MaterialStockCardController::class, 'storeStockIn'])->name('stock-cards.stock-in');
         Route::put('stock-cards/{material}/settings', [\App\Http\Controllers\MaterialStockCardController::class, 'updateCardSettings'])->name('stock-cards.update-settings');
 

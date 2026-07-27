@@ -145,11 +145,13 @@
                                         <span class="font-semibold text-gray-800">• {{ $item->material->name ?? '-' }}</span>
                                         <span class="text-purple-700 font-bold">x{{ number_format($item->requested_qty) }} {{ $item->material->unit ?? '' }}</span>
                                         @if($item->status == 'approved')
-                                            <span class="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold">✓ อนุมัติ ({{ number_format($item->approved_qty) }})</span>
+                                            <span class="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold">✓ อนุมัติแล้ว ({{ number_format($item->approved_qty) }})</span>
+                                        @elseif($item->status == 'officer_approved')
+                                            <span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-md font-bold">🟦 รอหัวหน้าพัสดุอนุมัติ</span>
                                         @elseif($item->status == 'rejected')
                                             <span class="text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded-md font-bold">✕ ไม่อนุมัติ</span>
                                         @else
-                                            <span class="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-md font-bold">⏳ รอพิจารณา</span>
+                                            <span class="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-md font-bold">⏳ รอเจ้าหน้าที่พัสดุ</span>
                                         @endif
                                     </div>
                                 @endforeach
@@ -163,10 +165,14 @@
                         <td class="p-4 text-center whitespace-nowrap">
                             @if($req->status == 'pending')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200 shadow-sm animate-pulse">
-                                    <i class="fas fa-clock mr-1.5"></i> รออนุมัติ
+                                    <i class="fas fa-clock mr-1.5"></i> รอเจ้าหน้าที่พัสดุ
+                                </span>
+                            @elseif($req->status == 'officer_approved')
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+                                    <i class="fas fa-user-shield mr-1.5"></i> รอหัวหน้าพัสดุอนุมัติ
                                 </span>
                             @elseif($req->status == 'partial')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200 shadow-sm">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm">
                                     <i class="fas fa-spinner mr-1.5"></i> อนุมัติแล้วบางส่วน
                                 </span>
                             @elseif($req->status == 'approved')

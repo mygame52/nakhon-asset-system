@@ -4,7 +4,49 @@
 @section('page_description', 'ปรับปรุงข้อมูลการคุมคลังและสเปกวัสดุตามระเบียบกระทรวงการคลัง')
 
 @section('content')
-<div class="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 space-y-6">
+<div class="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 space-y-6" x-data="{
+    name: '{{ old('name', addslashes($material->name)) }}',
+    unit: '{{ old('unit', addslashes($material->unit)) }}',
+    specs: '{{ old('specs', addslashes($material->specs ?? '')) }}',
+    aiGenerating: false,
+    generateAiSpecs() {
+        if (!this.name.trim()) {
+            alert('กรุณากรอกชื่อรายการวัสดุก่อนใช้งาน AI แนะนำสเปก');
+            return;
+        }
+        this.aiGenerating = true;
+
+        fetch('{{ route('materials.generate-ai-specs') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ name: this.name, unit: this.unit })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.specs) {
+                this.specs = data.specs;
+                if (data.unit && !this.unit) {
+                    this.unit = data.unit;
+                }
+            } else {
+                let fallback = getSmartMaterialSpecs(this.name, this.unit);
+                this.specs = fallback.specs;
+                if (fallback.unit && !this.unit) this.unit = fallback.unit;
+            }
+            this.aiGenerating = false;
+        })
+        .catch(err => {
+            console.warn('AI spec fetch failed, using smart engine fallback:', err);
+            let fallback = getSmartMaterialSpecs(this.name, this.unit);
+            this.specs = fallback.specs;
+            if (fallback.unit && !this.unit) this.unit = fallback.unit;
+            this.aiGenerating = false;
+        });
+    }
+}">
     <!-- Header Title Bar -->
     <div class="border-b border-gray-100 pb-4 flex items-center justify-between">
         <div>
@@ -81,7 +123,7 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-cube text-gray-400"></i>
                         </div>
-                        <input type="text" name="unit" value="{{ old('unit', $material->unit) }}" required placeholder="เช่น รีม, ด้าม, เล่ม, กล่อง" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm font-semibold">
+                        <input type="text" name="unit" x-model="unit" required placeholder="เช่น รีม, ด้าม, เล่ม, กล่อง" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm font-semibold">
                     </div>
                 </div>
             </div>
@@ -93,14 +135,20 @@
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i class="fas fa-pen-alt text-gray-400"></i>
                     </div>
-                    <input type="text" name="name" value="{{ old('name', $material->name) }}" required class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm font-bold text-gray-900">
+                    <input type="text" name="name" x-model="name" required class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm font-bold text-gray-900">
                 </div>
             </div>
 
-            <!-- Specs -->
+            <!-- Specs & AI Button -->
             <div class="mt-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">ขนาดหรือลักษณะ / สเปกรายละเอียด</label>
-                <textarea name="specs" rows="3" placeholder="เช่น ขนาด 210 x 297 มม., บรรจุ 500 แผ่น/รีม..." class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm leading-relaxed resize-none">{{ old('specs', $material->specs) }}</textarea>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">ขนาดหรือลักษณะ / สเปกรายละเอียด</label>
+                    <button type="button" @click="generateAiSpecs()" class="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95">
+                        <span x-show="!aiGenerating" class="flex items-center"><i class="fas fa-magic mr-1 text-amber-300"></i> ✨ AI แนะนำสเปกอัตโนมัติ (Gemini)</span>
+                        <span x-show="aiGenerating" style="display:none;" class="flex items-center"><i class="fas fa-spinner fa-spin mr-1"></i> กำลังวิเคราะห์ข้อมูลสเปก...</span>
+                    </button>
+                </div>
+                <textarea name="specs" x-model="specs" rows="3" placeholder="ระบุขนาด สเปกรายละเอียด หรือกดปุ่ม ✨ AI แนะนำสเปกอัตโนมัติ..." class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all outline-none text-sm leading-relaxed resize-none"></textarea>
             </div>
         </div>
 
@@ -170,4 +218,170 @@
         </div>
     </form>
 </div>
+
+<script>
+function getSmartMaterialSpecs(materialName, currentUnit) {
+    let name = (materialName || '').trim();
+    if (!name) return { specs: '', unit: currentUnit };
+
+    let n = name.toLowerCase();
+    
+    // Dynamic Size Extractions
+    let inchMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:นิ้ว|")/i);
+    let sizeInch = inchMatch ? inchMatch[1] + ' นิ้ว' : null;
+
+    let gsmMatch = name.match(/(\d+)\s*แกรม/i);
+    let sizeGsm = gsmMatch ? gsmMatch[1] + ' แกรม' : null;
+
+    let mmMatch = name.match(/(\d+(?:\.\d+)?)\s*มม\.?/i);
+    let sizeMm = mmMatch ? mmMatch[1] + ' มม.' : null;
+
+    let mlMatch = name.match(/(\d+)\s*(?:มล\.?|มิลลิลิตร|ml)/i);
+    let sizeMl = mlMatch ? mlMatch[1] + ' มล.' : null;
+
+    let resultSpecs = '';
+    let autoUnit = currentUnit || '';
+
+    // 1. สมุดทุกชนิด
+    if (n.includes('สมุด')) {
+        if (n.includes('ลงเวลา') || n.includes('ลงนาม')) {
+            resultSpecs = 'ขนาด A4 (210 x 297 มม.) ปกแข็งหุ้มอย่างดี สมุดลงเวลาปฏิบัติราชการของข้าราชการและบุคลากร ด้านในมีตารางระบุวันที่ ชื่อ-นามสกุล เวลามา-เวลากลับ และช่องลงลายมือชื่อ';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else if (n.includes('ส่งหนังสือ') || n.includes('รับหนังสือ') || n.includes('ทะเบียน')) {
+            resultSpecs = 'ขนาด 210 x 330 มม. ปกแข็งอย่างดี พิมพ์ตารางลงทะเบียนรับ-ส่งหนังสือราชการคมชัด กระดาษปอนด์ 70 แกรม บรรจุ 80 แผ่น/เล่ม';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else if (n.includes('เบิกพัสดุ') || n.includes('คุมพัสดุ') || n.includes('บัญชีพัสดุ')) {
+            resultSpecs = 'ขนาด 210 x 330 มม. ปกแข็งหุ้มอย่างดี พิมพ์ตารางคุมรับ-จ่าย-คงเหลือพัสดุตามระเบียบกระทรวงการคลัง บรรจุ 100 แผ่น/เล่ม';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else if (n.includes('บัญชี') || n.includes('เงินสด') || n.includes('รายวัน')) {
+            resultSpecs = 'ขนาด A4 ปกแข็งอย่างดี พิมพ์ตารางบัญชีการเงินคมชัด กระดาษปอนด์ 70 แกรม บรรจุ 100 แผ่น/เล่ม';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else {
+            resultSpecs = 'ขนาด A4 (210 x 297 มม.) ปกแข็งอย่างดี เนื้อกระดาษปอนด์ขาว 70 แกรม พิมพ์เส้นบรรทัดชัดเจน บรรจุ 80 แผ่น/เล่ม';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        }
+    }
+    // 2. กรรไกร
+    else if (n.includes('กรรไกร')) {
+        let sz = sizeInch || '8 นิ้ว';
+        resultSpecs = `ขนาด ${sz} ใบมีดสแตนเลสคุณภาพสูง คมทนทาน ด้ามจับหุ้มยางนุ่มกระชับมือ ตัดง่าย เหมาะสำหรับงานตัดกระดาษและเอกสารสำนักงาน`;
+        if (!autoUnit) autoUnit = 'เล่ม';
+    }
+    // 3. ปากกา
+    else if (n.includes('ปากกา')) {
+        let tip = sizeMm || '0.5 มม.';
+        if (n.includes('เน้นข้อความ') || n.includes('ไฮไลท์')) {
+            resultSpecs = 'หัวหมึกชนิดตัด ขนาดเส้น 2-5 มม. หมึกสีสดใส ไม่ซีดจาง ไม่ไร้รอยซึมหลังกระดาษ';
+            if (!autoUnit) autoUnit = 'ด้าม';
+        } else if (n.includes('ไวท์บอร์ด')) {
+            resultSpecs = 'หัวลบได้ กลิ่นไม่ฉุน เขียนลื่น ลบง่าย ไม่ทิ้งคราบสกปรกบนกระดานไวท์บอร์ด';
+            if (!autoUnit) autoUnit = 'ด้าม';
+        } else if (n.includes('เคมี') || n.includes('เมจิก')) {
+            resultSpecs = 'หมึกกันน้ำ กลิ่นไม่ฉุน เขียนได้บนทุกพื้นผิว แห้งเร็ว สีเข้มคมชัด';
+            if (!autoUnit) autoUnit = 'ด้าม';
+        } else {
+            resultSpecs = `ขนาดหัวเขียน ${tip} หมึกไหลสม่ำเสมอ เขียนลื่น แห้งไว ไม่เลอะเทอะ ด้ามจับกระชับมือ`;
+            if (!autoUnit) autoUnit = 'ด้าม';
+        }
+    }
+    // 4. ดินสอ / ยางลบ
+    else if (n.includes('ดินสอ')) {
+        if (n.includes('กด')) {
+            resultSpecs = `ขนาดไส้ ${sizeMm || '0.5 มม.'} ด้ามจับกระชับมือ มีคลิปหนีบ ปลายหัวเป็นเหล็กแข็งแรง`;
+            if (!autoUnit) autoUnit = 'ด้าม';
+        } else {
+            resultSpecs = 'ความเข้มไส้ดินสอ 2B เหลาง่าย ไส้ไม่แตกหักง่าย เหมาะสำหรับทำข้อสอบและเขียนทั่วไป';
+            if (!autoUnit) autoUnit = 'แท่ง';
+        }
+    } else if (n.includes('ยางลบ')) {
+        resultSpecs = 'ทำจากพลาสติก PVC คุณภาพดี ลบสะอาด ไม่ทำลายเนื้อกระดาษ ขยะยางลบเกาะตัวเป็นก้อน';
+        if (!autoUnit) autoUnit = 'ก้อน';
+    }
+    // 5. คัตเตอร์
+    else if (n.includes('คัตเตอร์')) {
+        if (n.includes('ใบมีด')) {
+            resultSpecs = `ขนาด ${sizeMm || '18 มม.'} ทำจากเหล็กกล้าเกรดพรีเมียม ทำมุม 45 องศา คมทนทาน บรรจุ 10 ใบ/กล่อง`;
+            if (!autoUnit) autoUnit = 'กล่อง';
+        } else {
+            resultSpecs = 'ขนาดใหญ่ ด้ามสแตนเลสหุ้มพลาสติกแข็ง มีระบบล็อกใบมีดอัตโนมัติ ใบมีดทำจากเหล็กกล้าคมทนทาน';
+            if (!autoUnit) autoUnit = 'ด้าม';
+        }
+    }
+    // 6. กระดาษ
+    else if (n.includes('กระดาษ')) {
+        let gsm = sizeGsm || (n.includes('80') ? '80 แกรม' : '70 แกรม');
+        if (n.includes('a4') || n.includes('เอ4')) {
+            resultSpecs = `ขนาด 210 x 297 มม. (A4) หนา ${gsm} บรรจุ 500 แผ่น/รีม เนื้อกระดาษขาวเรียบลื่น ถนอมสายตา พิมพ์ได้ 2 หน้า มาตรฐานทางราชการ`;
+            if (!autoUnit) autoUnit = 'รีม';
+        } else if (n.includes('โพสต์อิท') || n.includes('โน้ต')) {
+            resultSpecs = 'ขนาด 3 x 3 นิ้ว แถบกาวติดแน่น ลอกออกได้ไม่ทิ้งคราบกาว บรรจุ 100 แผ่น/เล่ม';
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else {
+            resultSpecs = `เนื้อกระดาษคุณภาพดี หนา ${gsm} เหมาะสำหรับงานพิมพ์เอกสารและใช้งานในสำนักงาน`;
+            if (!autoUnit) autoUnit = 'รีม';
+        }
+    }
+    // 7. แฟ้มเอกสาร
+    else if (n.includes('แฟ้ม')) {
+        let sp = sizeInch || '2 นิ้ว';
+        if (n.includes('ห่วง') || n.includes('สันหนา')) {
+            resultSpecs = `ขนาด A4 สันกว้าง ${sp} ปกแข็งหุ้มตราช้าง/พีวีซี คลิปเหล็กแข็งแรง ล็อกแน่น สันแฟ้มมีป้ายชื่อ`;
+            if (!autoUnit) autoUnit = 'เล่ม';
+        } else {
+            resultSpecs = `ขนาด A4 สันกว้าง ${sp} ปกแข็งอย่างดี ถนอมเอกสารได้ดีเยี่ยม`;
+            if (!autoUnit) autoUnit = 'เล่ม';
+        }
+    }
+    // 8. เทป / กาว
+    else if (n.includes('เทป')) {
+        let width = sizeInch || '1 นิ้ว';
+        resultSpecs = `แกน 3 นิ้ว หน้ากว้าง ${width} ความยาว 36 หลา กาวอะคริลิกเหนียวแน่น ไม่เหลืองกรอบ`;
+        if (!autoUnit) autoUnit = 'ม้วน';
+    }
+    // 9. ซองเอกสาร
+    else if (n.includes('ซอง')) {
+        if (n.includes('น้ำตาล') || n.includes('ขยายข้าง') || n.includes('a4')) {
+            resultSpecs = 'ขนาด 9 x 12 นิ้ว (A4) กระดาษคราฟท์สีน้ำตาลอย่างหนา 110 แกรม พิมพ์ตราครุฑทางการ แถบกาวติดแน่น';
+            if (!autoUnit) autoUnit = 'ซอง';
+        } else {
+            resultSpecs = 'ขนาด 4.5 x 7 นิ้ว กระดาษปอนด์ขาวคุณภาพดี พิมพ์ตราครุฑทางการ บรรจุ 50 ซอง/แพ็ค';
+            if (!autoUnit) autoUnit = 'แพ็ค';
+        }
+    }
+    // 10. ตรายาง / ประทับ
+    else if (n.includes('ตรายาง') || n.includes('ตราปั๊ม')) {
+        resultSpecs = 'ทำจากยางพาราคุณภาพดี ตัวอักษรคมชัด ด้ามจับพลาสติกแข็งทนทาน ทนต่อแรงกดใช้งาน';
+        if (!autoUnit) autoUnit = 'อัน';
+    } else if (n.includes('ประทับ') || n.includes('ตลับชาด')) {
+        resultSpecs = 'เบอร์ 2 (7 x 11 ซม.) ตลับโลหะแข็งแรง หมึกสีน้ำเงิน/แดง คมชัด แห้งเร็ว ไม่ซึมเลอะเทอะ';
+        if (!autoUnit) autoUnit = 'ตลับ';
+    }
+    // 11. หมึกพิมพ์
+    else if (n.includes('หมึก') || n.includes('toner')) {
+        resultSpecs = 'ตลับผงหมึกพิมพ์เลเซอร์คุณภาพสูง ให้งานพิมพ์สีดำเข้ม คมชัด พิมพ์ได้ประมาณ 1,500-2,000 หน้า';
+        if (!autoUnit) autoUnit = 'ตลับ';
+    }
+    // 12. ถ่านไฟฉาย
+    else if (n.includes('ถ่าน') || n.includes('แบตเตอรี่')) {
+        let type = n.includes('aaa') ? 'AAA' : (n.includes('aa') ? 'AA' : 'AA/AAA');
+        resultSpecs = `ขนาด ${type} กำลังไฟ 1.5V อัลคาไลน์ ให้พลังงานยาวนาน ปราศจากสารปรอทและแคดเมียม บรรจุ 4 ก้อน/แพ็ค`;
+        if (!autoUnit) autoUnit = 'แพ็ค';
+    }
+    // 13. โต๊ะ / เก้าอี้ / ตู้
+    else if (n.includes('เก้าอี้')) {
+        resultSpecs = 'พนักพิงและเบาะนั่งบุฟองน้ำฉีดขึ้นรูป หุ้มผ้า/หนัง พีวีซี ขาเหล็กชุบโครเมี่ยมพร้อมล้อเลื่อน แข็งแรงทนทาน';
+        if (!autoUnit) autoUnit = 'ตัว';
+    } else if (n.includes('โต๊ะ')) {
+        resultSpecs = 'โครงสร้างเหล็ก/ไม้เนื้อแข็ง แข็งแรงทนทาน หน้าโต๊ะปิดผิวลามิเนตกันน้ำและรอยขีดข่วน มีลิ้นชักล็อกได้';
+        if (!autoUnit) autoUnit = 'ตัว';
+    } else if (n.includes('ตู้')) {
+        resultSpecs = 'โครงสร้างเหล็กพ่นสีกันสนิมอย่างดี มือจับแบบกดล็อก แข็งแรง ทนทาน ได้มาตรฐานงานพัสดุราชการ';
+        if (!autoUnit) autoUnit = 'ตู้';
+    } else {
+        resultSpecs = 'ขนาดมาตรฐาน ผลิตจากวัสดุคุณภาพดี ได้มาตรฐาน เหมาะสำหรับงานพัสดุสำนักงานและใช้งานทั่วไป';
+    }
+
+    return { specs: resultSpecs, unit: autoUnit };
+}
+</script>
 @endsection

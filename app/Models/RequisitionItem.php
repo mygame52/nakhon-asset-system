@@ -12,13 +12,17 @@ class RequisitionItem extends Model
         'material_id',
         'requested_qty',
         'approved_qty',
-        'status',
+        'status', // pending, officer_approved, approved, rejected
+        'officer_approved_by',
+        'officer_approved_at',
+        'officer_note',
         'admin_note',
         'approved_by',
         'approved_at',
     ];
 
     protected $casts = [
+        'officer_approved_at' => 'datetime',
         'approved_at' => 'datetime',
         'requested_qty' => 'integer',
         'approved_qty' => 'integer',
@@ -32,6 +36,11 @@ class RequisitionItem extends Model
     public function material(): BelongsTo
     {
         return $this->belongsTo(Material::class, 'material_id');
+    }
+
+    public function officerApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'officer_approved_by');
     }
 
     public function approver(): BelongsTo

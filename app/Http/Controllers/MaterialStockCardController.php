@@ -252,7 +252,7 @@ class MaterialStockCardController extends Controller
             $material->save();
 
             // Record Inward Transaction
-            Transaction::create([
+            $tx = Transaction::create([
                 'transaction_type' => 'in',
                 'item_type' => 'material',
                 'item_id' => $material->id,
@@ -265,6 +265,13 @@ class MaterialStockCardController extends Controller
                 'transaction_date' => $validated['transaction_date'],
                 'status' => 'completed',
             ]);
+
+            \App\Models\ActivityLog::log(
+                'stock_in',
+                'material_stock',
+                'บันทึกรับวัสดุเข้าคลัง: ' . $material->name . ' จำนวน ' . $validated['quantity'] . ' ' . $material->unit . ' จาก (' . $validated['party_name'] . ') เอกสาร: ' . ($validated['reference_doc'] ?? 'รับเข้าสต็อก'),
+                $material
+            );
         });
 
         return back()->with('success', 'บันทึกรับวัสดุเข้าสต็อกเรียบร้อยแล้ว');

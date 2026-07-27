@@ -26,6 +26,7 @@ class LoginController extends Controller
             if ($user && $user->roles->isEmpty()) {
                 $user->assignRole('user');
             }
+            \App\Models\ActivityLog::log('login', 'auth', "ผู้ใช้งาน {$user->name} ({$user->username}) เข้าสู่ระบบสำเร็จ", $user);
             return redirect()->intended('dashboard');
         }
 
@@ -36,6 +37,10 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        if ($user) {
+            \App\Models\ActivityLog::log('logout', 'auth', "ผู้ใช้งาน {$user->name} ({$user->username}) ออกจากระบบ", $user);
+        }
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

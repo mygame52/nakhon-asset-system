@@ -78,6 +78,10 @@
                     <i class="fas fa-users-cog w-7 text-center group-hover:scale-110 transition-transform"></i>
                     <span class="font-medium text-sm">จัดการผู้ใช้งาน</span>
                 </a>
+                <a href="{{ route('activity-logs.index') }}" class="flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('activity-logs.*') ? 'bg-white/15 text-amber-400 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10' : 'text-white/60 hover:bg-white/5 hover:text-white' }}">
+                    <i class="fas fa-history w-7 text-center group-hover:scale-110 transition-transform"></i>
+                    <span class="font-medium text-sm">ประวัติการใช้งานระบบ</span>
+                </a>
                 @endrole
 
                 <div class="pt-2 mt-2 border-t border-white/10"></div>

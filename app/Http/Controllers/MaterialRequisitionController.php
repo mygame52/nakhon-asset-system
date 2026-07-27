@@ -168,6 +168,13 @@ class MaterialRequisitionController extends Controller
 
             $this->updateParentStatus($item->requisition);
 
+            \App\Models\ActivityLog::log(
+                'officer_approved',
+                'requisition',
+                'เจ้าหน้าที่พัสดุ (' . Auth::user()->name . ') อนุมัติขั้นที่ 1 รายการเบิก ' . $material->name . ' จำนวน ' . $validated['approved_qty'] . ' ' . $material->unit . ' [' . $item->requisition->requisition_code . ']',
+                $item
+            );
+
             // Send Notification to Head of Procurement (admin role)
             $admins = User::role('admin')->get();
             foreach ($admins as $adminUser) {
@@ -243,6 +250,13 @@ class MaterialRequisitionController extends Controller
             ]);
 
             $this->updateParentStatus($item->requisition);
+
+            \App\Models\ActivityLog::log(
+                'head_approved',
+                'requisition',
+                'หัวหน้าพัสดุ (' . Auth::user()->name . ') อนุมัติขั้นที่ 2 (ตัดสต็อก) รายการเบิก ' . $material->name . ' จำนวน ' . $validated['approved_qty'] . ' ' . $material->unit . ' [' . $item->requisition->requisition_code . ']',
+                $item
+            );
 
             // Send Notification to user
             Notification::send(

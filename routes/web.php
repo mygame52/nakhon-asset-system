@@ -53,6 +53,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('stock-cards/{material}/stock-in', [\App\Http\Controllers\MaterialStockCardController::class, 'storeStockIn'])->name('stock-cards.stock-in');
         Route::put('stock-cards/{material}/settings', [\App\Http\Controllers\MaterialStockCardController::class, 'updateCardSettings'])->name('stock-cards.update-settings');
 
+        // Activity Logs (ประวัติการใช้งานระบบ - เฉพาะ Admin)
+        Route::get('activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs.index');
+
         Route::resource('assets', AssetController::class)->except(['index', 'show']);
         Route::resource('materials', MaterialController::class)->except(['index', 'show']);
         Route::resource('categories', CategoryController::class)->except(['index']);

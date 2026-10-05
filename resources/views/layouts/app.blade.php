@@ -38,7 +38,7 @@
                     <i class="fas fa-box w-7 text-center group-hover:scale-110 transition-transform"></i>
                     <span class="font-medium text-sm">ทะเบียนครุภัณฑ์ (พด.1)</span>
                 </a>
-                <a href="{{ route('materials.index') }}" class="flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('materials.*') || request()->routeIs('requisitions.*') ? 'bg-white/15 text-amber-400 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10' : 'text-white/60 hover:bg-white/5 hover:text-white' }}">
+                <a href="{{ route('materials.index') }}" class="flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('materials.*') || request()->routeIs('requisitions.*') || request()->routeIs('stock-cards.*') || request()->routeIs('material-receipts.*') ? 'bg-white/15 text-amber-400 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10' : 'text-white/60 hover:bg-white/5 hover:text-white' }}">
                     <i class="fas fa-boxes w-7 text-center group-hover:scale-110 transition-transform"></i>
                     <span class="font-medium text-sm">วัสดุคงคลัง & ขอเบิก</span>
                 </a>

@@ -6,15 +6,18 @@
 @section('content')
 <!-- Tabs Navigation -->
 <div class="flex border-b border-gray-200 mb-6 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100">
-    <a href="{{ route('materials.index') }}" class="flex-1 py-3 px-6 text-center font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-md">
+    <a href="{{ route('materials.index') }}" class="flex-1 py-3 px-4 text-center font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-md">
         <i class="fas fa-boxes"></i> รายการวัสดุคงคลัง
     </a>
-    <a href="{{ route('requisitions.index') }}" class="flex-1 py-3 px-6 text-center font-bold text-sm text-gray-500 hover:text-purple-700 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-purple-50/50">
+    <a href="{{ route('requisitions.index') }}" class="flex-1 py-3 px-4 text-center font-bold text-sm text-gray-500 hover:text-purple-700 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-purple-50/50">
         <i class="fas fa-file-signature"></i> ใบขอเบิกวัสดุ
     </a>
     @hasanyrole('admin|procurement')
-    <a href="{{ route('stock-cards.index') }}" class="flex-1 py-3 px-6 text-center font-bold text-sm text-gray-500 hover:text-purple-700 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-purple-50/50">
-        <i class="fas fa-book"></i> สมุดบัญชีวัสดุ (Stock Cards)
+    <a href="{{ route('stock-cards.index') }}" class="flex-1 py-3 px-4 text-center font-bold text-sm text-gray-500 hover:text-purple-700 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-purple-50/50">
+        <i class="fas fa-book"></i> สมุดบัญชีวัสดุ
+    </a>
+    <a href="{{ route('material-receipts.index') }}" class="flex-1 py-3 px-4 text-center font-bold text-sm text-gray-500 hover:text-purple-700 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-purple-50/50">
+        <i class="fas fa-file-import"></i> รายการรับวัสดุเข้า
     </a>
     @endhasanyrole
 </div>

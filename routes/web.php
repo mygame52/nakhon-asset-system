@@ -53,6 +53,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('stock-cards/{material}/stock-in', [\App\Http\Controllers\MaterialStockCardController::class, 'storeStockIn'])->name('stock-cards.stock-in');
         Route::put('stock-cards/{material}/settings', [\App\Http\Controllers\MaterialStockCardController::class, 'updateCardSettings'])->name('stock-cards.update-settings');
 
+        // Material Receipts (รายการรับวัสดุเข้าคลัง - ดูประวัติ/แก้ไข/ลบพร้อมเหตุผล)
+        Route::get('material-receipts', [\App\Http\Controllers\MaterialReceiptController::class, 'index'])->name('material-receipts.index');
+        Route::put('material-receipts/{material_receipt}', [\App\Http\Controllers\MaterialReceiptController::class, 'update'])->name('material-receipts.update');
+        Route::delete('material-receipts/{material_receipt}', [\App\Http\Controllers\MaterialReceiptController::class, 'destroy'])->name('material-receipts.destroy');
+
         // Activity Logs (ประวัติการใช้งานระบบ - เฉพาะ Admin)
         Route::get('activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs.index');
 

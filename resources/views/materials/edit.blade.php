@@ -9,6 +9,7 @@
     unit: '{{ old('unit', addslashes($material->unit)) }}',
     specs: '{{ old('specs', addslashes($material->specs ?? '')) }}',
     aiGenerating: false,
+    isSubmitting: false,
     generateAiSpecs() {
         if (!this.name.trim()) {
             alert('กรุณากรอกชื่อรายการวัสดุก่อนใช้งาน AI แนะนำสเปก');
@@ -73,7 +74,7 @@
         </div>
     @endif
 
-    <form action="{{ route('materials.update', $material->id) }}" method="POST" class="space-y-6">
+    <form action="{{ route('materials.update', $material->id) }}" method="POST" class="space-y-6" @submit="if(isSubmitting) { $event.preventDefault(); return false; } isSubmitting = true;">
         @csrf
         @method('PUT')
 
@@ -212,8 +213,13 @@
             <a href="{{ route('materials.index') }}" class="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl border border-gray-200 hover:bg-gray-200 transition-colors font-semibold text-sm">
                 ยกเลิก
             </a>
-            <button type="submit" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-purple-500/30 transition-all active:scale-95 flex items-center">
-                <i class="fas fa-save mr-2"></i> บันทึกการแก้ไขข้อมูล
+            <button type="submit" :disabled="isSubmitting" :class="isSubmitting ? 'opacity-70 cursor-not-allowed' : ''" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-purple-500/30 transition-all active:scale-95 flex items-center">
+                <span x-show="!isSubmitting" class="flex items-center">
+                    <i class="fas fa-save mr-2"></i> บันทึกการแก้ไขข้อมูล
+                </span>
+                <span x-show="isSubmitting" class="flex items-center" style="display: none;">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> กำลังบันทึกข้อมูล...
+                </span>
             </button>
         </div>
     </form>

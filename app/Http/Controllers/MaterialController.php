@@ -8,6 +8,8 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class MaterialController extends Controller
 {
@@ -50,7 +52,12 @@ class MaterialController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'material_code' => 'nullable|string|max:100',
+            'material_code' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('materials', 'material_code')->whereNull('deleted_at'),
+            ],
             'name' => 'required|string|max:255',
             'specs' => 'nullable|string|max:1000',
             'unit' => 'required|string|max:100',
@@ -60,6 +67,11 @@ class MaterialController extends Controller
             'location_name' => 'nullable|string|max:255',
             'min_stock' => 'nullable|integer|min:0',
             'max_stock' => 'nullable|integer|min:0',
+        ], [
+            'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น หรือเว้นว่างไว้เพื่อให้ระบบสร้างรหัสใหม่อัตโนมัติ',
+            'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
+            'unit.required' => 'กรุณาระบุหน่วยนับ',
+            'stock_qty.required' => 'กรุณาระบุจำนวนยกมาเริ่มต้น',
         ]);
 
         if (empty($validated['location_name'])) {
@@ -68,34 +80,55 @@ class MaterialController extends Controller
         $validated['min_stock'] = $validated['min_stock'] ?? 0;
         $validated['max_stock'] = $validated['max_stock'] ?? 0;
 
-        DB::transaction(function () use ($validated, &$material) {
-            // Auto generate material code if empty
-            if (empty($validated['material_code'])) {
-                $category = !empty($validated['category_id']) ? Category::find($validated['category_id']) : null;
-                $prefix = ($category && $category->code_prefix) ? $category->code_prefix : '5510';
-                $nextSeq = Material::where('category_id', $validated['category_id'])->count() + 1;
-                $validated['material_code'] = $prefix . '-' . sprintf('%03d', $nextSeq);
-            }
+        try {
+            DB::transaction(function () use ($validated, &$material) {
+                // Auto generate material code if empty (guaranteed collision-free)
+                if (empty($validated['material_code'])) {
+                    $category = !empty($validated['category_id']) ? Category::find($validated['category_id']) : null;
+                    $prefix = ($category && $category->code_prefix) ? $category->code_prefix : '5510';
+                    
+                    $seq = 1;
+                    do {
+                        $candidate = $prefix . '-' . sprintf('%03d', $seq);
+                        if (!Material::withTrashed()->where('material_code', $candidate)->exists()) {
+                            $validated['material_code'] = $candidate;
+                            break;
+                        }
+                        $seq++;
+                    } while ($seq <= 99999);
+                } else {
+                    // Release code if held by a soft-deleted item
+                    $trashed = Material::onlyTrashed()->where('material_code', $validated['material_code'])->first();
+                    if ($trashed) {
+                        $trashed->material_code = $trashed->material_code . '_del_' . $trashed->id;
+                        $trashed->save();
+                    }
+                }
 
-            $material = Material::create($validated);
+                $material = Material::create($validated);
 
-            // Record Initial Balance Transaction if stock_qty > 0
-            if ($material->stock_qty > 0) {
-                Transaction::create([
-                    'transaction_type' => 'in',
-                    'item_type' => 'material',
-                    'item_id' => $material->id,
-                    'quantity' => $material->stock_qty,
-                    'unit_price' => $material->unit_price,
-                    'user_id' => Auth::id(),
-                    'party_name' => 'ยอดยกมาเริ่มต้น',
-                    'reference_doc' => 'ยอดยกมา',
-                    'note' => 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ',
-                    'transaction_date' => now()->toDateString(),
-                    'status' => 'completed',
-                ]);
-            }
-        });
+                // Record Initial Balance Transaction if stock_qty > 0
+                if ($material->stock_qty > 0) {
+                    Transaction::create([
+                        'transaction_type' => 'in',
+                        'item_type' => 'material',
+                        'item_id' => $material->id,
+                        'quantity' => $material->stock_qty,
+                        'unit_price' => $material->unit_price,
+                        'user_id' => Auth::id(),
+                        'party_name' => 'ยอดยกมาเริ่มต้น',
+                        'reference_doc' => 'ยอดยกมา',
+                        'note' => 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ',
+                        'transaction_date' => now()->toDateString(),
+                        'status' => 'completed',
+                    ]);
+                }
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            return back()->withInput()->withErrors([
+                'material_code' => 'รหัสพัสดุ ' . ($validated['material_code'] ?? '') . ' ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น หรือเว้นว่างไว้เพื่อให้ระบบสร้างรหัสใหม่อัตโนมัติ'
+            ]);
+        }
 
         return redirect()->route('materials.index')->with('success', 'บันทึกเปิดบัญชีคุมรายการวัสดุใหม่เรียบร้อยแล้ว');
     }
@@ -123,7 +156,12 @@ class MaterialController extends Controller
     public function update(Request $request, Material $material)
     {
         $validated = $request->validate([
-            'material_code' => 'nullable|string|max:100',
+            'material_code' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('materials', 'material_code')->ignore($material->id)->whereNull('deleted_at'),
+            ],
             'name' => 'required|string|max:255',
             'specs' => 'nullable|string|max:1000',
             'unit' => 'required|string|max:100',
@@ -133,9 +171,29 @@ class MaterialController extends Controller
             'location_name' => 'nullable|string|max:255',
             'min_stock' => 'nullable|integer|min:0',
             'max_stock' => 'nullable|integer|min:0',
+        ], [
+            'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น',
+            'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
+            'unit.required' => 'กรุณาระบุหน่วยนับ',
+            'stock_qty.required' => 'กรุณาระบุจำนวนคงเหลือ',
         ]);
 
-        $material->update($validated);
+        try {
+            // Release code if held by another soft-deleted item
+            if (!empty($validated['material_code'])) {
+                $trashed = Material::onlyTrashed()->where('material_code', $validated['material_code'])->where('id', '!=', $material->id)->first();
+                if ($trashed) {
+                    $trashed->material_code = $trashed->material_code . '_del_' . $trashed->id;
+                    $trashed->save();
+                }
+            }
+
+            $material->update($validated);
+        } catch (UniqueConstraintViolationException $e) {
+            return back()->withInput()->withErrors([
+                'material_code' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น'
+            ]);
+        }
 
         return redirect()->route('materials.index')->with('success', 'ปรับปรุงข้อมูลรายการวัสดุเรียบร้อยแล้ว');
     }
@@ -145,6 +203,11 @@ class MaterialController extends Controller
      */
     public function destroy(Material $material)
     {
+        $code = $material->material_code;
+        if (!empty($code)) {
+            $material->material_code = $code . '_del_' . $material->id;
+            $material->save();
+        }
         $material->delete();
         return redirect()->route('materials.index')->with('success', 'ลบรายการวัสดุเรียบร้อยแล้ว');
     }

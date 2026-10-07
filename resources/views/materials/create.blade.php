@@ -80,7 +80,7 @@
         <!-- Section 1: ข้อมูลทั่วไปประจำรายการ -->
         <div>
             <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">
-                ๑. ข้อมูลกำกับพัสดุและหมวดหมู่
+                1. ข้อมูลกำกับพัสดุและหมวดหมู่
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -156,7 +156,7 @@
         <!-- Section 2: การคุมคลังและราคาสต็อก -->
         <div class="pt-4 border-t border-gray-100">
             <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">
-                ๒. การคุมคลัง ราคา และเกณฑ์เก็บสำรอง (Min/Max)
+                2. การคุมคลัง ราคา และเกณฑ์เก็บสำรอง (Min/Max)
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -195,15 +195,57 @@
                 </div>
             </div>
 
-            <div class="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
-                <div>
-                    <label class="block text-sm font-extrabold text-emerald-900 uppercase tracking-wider">
-                        ยอดคงเหลือยกมาเริ่มต้น (Opening Balance) <span class="text-red-500">*</span>
-                    </label>
-                    <p class="text-xs text-emerald-700 mt-1 font-medium">ระบุยอดคงเหลือยกมาจากปีก่อน หรือยอดยกมาเริ่มต้นคุมคลัง</p>
+            <div class="mt-6 p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-4" x-data="{ openingChoice: 'default', customOpeningDate: '' }">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <label class="block text-sm font-extrabold text-emerald-900 uppercase tracking-wider">
+                            ยอดคงเหลือยกมาเริ่มต้น (Opening Balance) <span class="text-red-500">*</span>
+                        </label>
+                        <p class="text-xs text-emerald-700 mt-1 font-medium">
+                            ระบุยอดคงเหลือยกมาจากปีก่อนหน้าตามระเบียบพัสดุ (ระบบจะตั้งต้นเป็นวันที่ 1 ต.ค. ให้อัตโนมัติ)
+                        </p>
+                    </div>
+                    <div class="w-full md:w-48">
+                        <input type="number" name="stock_qty" value="{{ old('stock_qty', 0) }}" min="0" required class="w-full px-4 py-3 bg-white border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xl font-extrabold text-center text-emerald-900 outline-none shadow-sm">
+                    </div>
                 </div>
-                <div class="w-full md:w-48">
-                    <input type="number" name="stock_qty" value="{{ old('stock_qty', 0) }}" min="0" required class="w-full px-4 py-3 bg-white border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xl font-extrabold text-center text-emerald-900 outline-none shadow-sm">
+
+                <!-- Fiscal Year of Opening Balance Selection -->
+                <div class="pt-4 border-t border-emerald-200/60 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div>
+                        <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                            <i class="fas fa-calendar-alt mr-1 text-emerald-600"></i> ปีงบประมาณที่เริ่มต้นยอดยกมา
+                        </label>
+                        <select x-model="openingChoice" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                            <option value="default">ปีงบประมาณ 2570 (ยอดยกมา ณ 1 ต.ค. 2569 - ปีปัจจุบัน)</option>
+                            <option value="2569">ปีงบประมาณ 2569 (ยอดยกมา ณ 1 ต.ค. 2568 - ย้อนหลัง 1 ปี)</option>
+                            <option value="2568">ปีงบประมาณ 2568 (ยอดยกมา ณ 1 ต.ค. 2567 - ย้อนหลัง 2 ปี)</option>
+                            <option value="2567">ปีงบประมาณ 2567 (ยอดยกมา ณ 1 ต.ค. 2566 - ย้อนหลัง 3 ปี)</option>
+                            <option value="custom">กำหนดวันที่ยอดยกมาเอง...</option>
+                        </select>
+                    </div>
+
+                    <!-- Hidden/Calculated or Custom Date Input -->
+                    <div>
+                        <template x-if="openingChoice === 'custom'">
+                            <div>
+                                <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                    ระบุวันที่ยอดยกมาเอง
+                                </label>
+                                <input type="date" name="opening_balance_date" x-model="customOpeningDate" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none">
+                            </div>
+                        </template>
+                        <template x-if="openingChoice !== 'custom'">
+                            <input type="hidden" name="opening_balance_date" :value="
+                                openingChoice === '2569' ? '2025-09-30' :
+                                openingChoice === '2568' ? '2024-09-30' :
+                                openingChoice === '2567' ? '2023-09-30' : '2026-09-30'
+                            ">
+                        </template>
+                        <p class="text-[11px] text-emerald-700 mt-1 italic" x-show="openingChoice !== 'custom'">
+                            * ระบบจะนำยอดนี้ไปแสดงที่แถวที่ 1 (ยอดยกมาจากปีงบประมาณก่อนหน้า) โดยอัตโนมัติ
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

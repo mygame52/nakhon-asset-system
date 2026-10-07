@@ -81,7 +81,7 @@
         <!-- Section 1: ข้อมูลทั่วไปประจำรายการ -->
         <div>
             <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">
-                ๑. ข้อมูลกำกับพัสดุและหมวดหมู่
+                1. ข้อมูลกำกับพัสดุและหมวดหมู่
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -156,7 +156,7 @@
         <!-- Section 2: การคุมคลังและราคาสต็อก -->
         <div class="pt-4 border-t border-gray-100">
             <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">
-                ๒. การคุมคลัง ราคา และเกณฑ์เก็บสำรอง (Min/Max)
+                2. การคุมคลัง ราคา และเกณฑ์เก็บสำรอง (Min/Max)
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('page_title', 'ใบเบิกพัสดุ')
-@section('page_description', 'รายละเอียดพิจารณาอนุมัติ ๒ ขั้นตอน (เจ้าหน้าที่พัสดุ -> หัวหน้าพัสดุ) และเอกสารใบเบิกพัสดุทางการ (ขนาด A4)')
+@section('page_description', 'รายละเอียดพิจารณาอนุมัติ 2 ขั้นตอน (เจ้าหน้าที่พัสดุ -> หัวหน้าพัสดุ) และเอกสารใบเบิกพัสดุทางการ (ขนาด A4)')
 
 @section('content')
 <div class="max-w-4xl mx-auto" x-data="{ 
@@ -58,18 +58,18 @@
                 <i class="fas fa-tasks"></i>
             </div>
             <div>
-                <h4 class="font-bold text-gray-900 text-sm">ขั้นตอนการอนุมัติใบเบิกพัสดุ (๒ ขั้นตอน)</h4>
-                <p class="text-xs text-gray-500">๑. เจ้าหน้าที่พัสดุอนุมัติ ➔ ๒. หัวหน้าพัสดุอนุมัติขั้นสุดท้าย</p>
+                <h4 class="font-bold text-gray-900 text-sm">ขั้นตอนการอนุมัติใบเบิกพัสดุ (2 ขั้นตอน)</h4>
+                <p class="text-xs text-gray-500">1. เจ้าหน้าที่พัสดุอนุมัติ ➔ 2. หัวหน้าพัสดุอนุมัติขั้นสุดท้าย</p>
             </div>
         </div>
 
         <div class="flex items-center gap-2 text-xs font-bold">
             <span class="px-3 py-1.5 rounded-xl border {{ $requisition->items->whereIn('status', ['officer_approved', 'approved'])->count() > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200' }}">
-                <i class="fas {{ $requisition->items->whereIn('status', ['officer_approved', 'approved'])->count() > 0 ? 'fa-check-circle' : 'fa-clock' }} mr-1"></i> ขั้นที่ ๑: เจ้าหน้าที่พัสดุ
+                <i class="fas {{ $requisition->items->whereIn('status', ['officer_approved', 'approved'])->count() > 0 ? 'fa-check-circle' : 'fa-clock' }} mr-1"></i> ขั้นที่ 1: เจ้าหน้าที่พัสดุ
             </span>
             <i class="fas fa-chevron-right text-gray-300"></i>
             <span class="px-3 py-1.5 rounded-xl border {{ $requisition->status == 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200' }}">
-                <i class="fas {{ $requisition->status == 'approved' ? 'fa-check-double' : 'fa-lock' }} mr-1"></i> ขั้นที่ ๒: หัวหน้าพัสดุ
+                <i class="fas {{ $requisition->status == 'approved' ? 'fa-check-double' : 'fa-lock' }} mr-1"></i> ขั้นที่ 2: หัวหน้าพัสดุ
             </span>
         </div>
     </div>
@@ -292,7 +292,7 @@
                         @csrf
                         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white flex justify-between items-center">
                             <h3 class="font-bold text-lg flex items-center">
-                                <i class="fas fa-check-circle mr-2"></i> ขั้นที่ ๑: เจ้าหน้าที่พัสดุพิจารณาอนุมัติ
+                                <i class="fas fa-check-circle mr-2"></i> ขั้นที่ 1: เจ้าหน้าที่พัสดุพิจารณาอนุมัติ
                             </h3>
                             <button type="button" @click="officerApproveModal = false" class="text-white/60 hover:text-white"><i class="fas fa-times text-lg"></i></button>
                         </div>
@@ -339,7 +339,7 @@
                         @csrf
                         <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white flex justify-between items-center">
                             <h3 class="font-bold text-lg flex items-center">
-                                <i class="fas fa-check-double mr-2"></i> ขั้นที่ ๒: หัวหน้าพัสดุอนุมัติ (ขั้นสุดท้าย)
+                                <i class="fas fa-check-double mr-2"></i> ขั้นที่ 2: หัวหน้าพัสดุอนุมัติ (ขั้นสุดท้าย)
                             </h3>
                             <button type="button" @click="headApproveModal = false" class="text-white/60 hover:text-white"><i class="fas fa-times text-lg"></i></button>
                         </div>

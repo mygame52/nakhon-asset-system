@@ -11,7 +11,7 @@
             <i class="fas fa-arrow-left mr-2"></i> ย้อนกลับไปดัชนีบัญชีวัสดุ
         </a>
 
-        <!-- Fiscal Year Dropdown (ข้อ ๑: สรุปจัดทำตามปีงบประมาณ) -->
+        <!-- Fiscal Year Dropdown (ข้อ 1: สรุปจัดทำตามปีงบประมาณ) -->
         <div class="flex flex-wrap items-center gap-2">
             <form action="{{ route('stock-cards.show', $material->id) }}" method="GET" class="flex items-center gap-2">
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">ปีงบประมาณ:</span>
@@ -44,7 +44,7 @@
     <div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 md:p-12 relative overflow-hidden" style="font-family: 'Sarabun', sans-serif;">
         <!-- Fiscal Year Badge -->
         <div class="absolute top-6 right-8 bg-purple-50 text-purple-800 border border-purple-200 font-bold text-xs px-3.5 py-1.5 rounded-full shadow-sm">
-            ปีงบประมาณ พ.ศ. {{ $fiscalYearBE }} (๑ ต.ค. {{ $fiscalYearBE - 1 }} - ๓๐ ก.ย. {{ $fiscalYearBE }})
+            ปีงบประมาณ พ.ศ. {{ $fiscalYearBE }} (1 ต.ค. {{ $fiscalYearBE - 1 }} - 30 ก.ย. {{ $fiscalYearBE }})
         </div>
 
         <!-- Header Title -->
@@ -194,28 +194,28 @@
 
                     <div class="p-6 space-y-3.5 text-sm text-gray-700 max-h-[70vh] overflow-y-auto custom-scrollbar leading-relaxed">
                         <div class="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl">
-                            <strong class="text-amber-900">๑. การปิดบัญชีและการยกยอด:</strong> บัญชีวัสดุให้จัดทำแต่ละปีงบประมาณ (๑ ต.ค. - ๓๐ ก.ย.) เมื่อขึ้นปีงบประมาณใหม่ให้ขึ้นแผ่นใหม่ทุกครั้ง หากมีวัสดุคงเหลือให้ยกยอดคงเหลือจากปีก่อนเป็นยอดยกมาในปีปัจจุบัน
+                            <strong class="text-amber-900">1. การปิดบัญชีและการยกยอด:</strong> บัญชีวัสดุให้จัดทำแต่ละปีงบประมาณ (1 ต.ค. - 30 ก.ย.) เมื่อขึ้นปีงบประมาณใหม่ให้ขึ้นแผ่นใหม่ทุกครั้ง หากมีวัสดุคงเหลือให้ยกยอดคงเหลือจากปีก่อนเป็นยอดยกมาในปีปัจจุบัน
                         </div>
                         <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-xl">
-                            <strong class="text-gray-900">๒. การควบคุม ๑ รายการ/บัญชี:</strong> บัญชีวัสดุแต่ละบัญชี (แต่ละประเภท/ชนิด) ให้ควบคุมวัสดุ ๑ รายการ/ประเภท/ชนิด เท่านั้น
+                            <strong class="text-gray-900">2. การควบคุม 1 รายการ/บัญชี:</strong> บัญชีวัสดุแต่ละบัญชี (แต่ละประเภท/ชนิด) ให้ควบคุมวัสดุ 1 รายการ/ประเภท/ชนิด เท่านั้น
                         </div>
                         <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-xl">
-                            <strong class="text-gray-900">๓. การลงบัญชีตามระเบียบ:</strong> การลงบัญชีวัสดุ ให้ลงทุกครั้งที่มีการรับ หรือจ่ายตามระเบียบสำนักนายกรัฐมนตรีว่าด้วยการพัสดุ พ.ศ. ๒๕๓๕ และแก้ไขเพิ่มเติม ข้อ ๑๕๒ – ๑๕๔
+                            <strong class="text-gray-900">3. การลงบัญชีตามระเบียบ:</strong> การลงบัญชีวัสดุ ให้ลงทุกครั้งที่มีการรับ หรือจ่ายตามระเบียบสำนักนายกรัฐมนตรีว่าด้วยการพัสดุ พ.ศ. 2535 และแก้ไขเพิ่มเติม ข้อ 152 – 154
                         </div>
                         <div class="p-3 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl">
-                            <strong class="text-emerald-900">๔. ราคาต่อหน่วยรวม VAT:</strong> ราคาต่อหน่วย จะต้องเป็นราคาที่รวมภาษีมูลค่าเพิ่ม (VAT 7%) แล้ว
+                            <strong class="text-emerald-900">4. ราคาต่อหน่วยรวม VAT:</strong> ราคาต่อหน่วย จะต้องเป็นราคาที่รวมภาษีมูลค่าเพิ่ม (VAT 7%) แล้ว
                         </div>
                         <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-xl">
-                            <strong class="text-gray-900">๕. การกำหนดหน่วยนับ:</strong> การกำหนดหน่วยนับของวัสดุ ควรพิจารณาให้เหมาะสมกับการเบิกจ่ายวัสดุของหน่วยงาน เช่น ดินสอ สามารถกำหนดหน่วยนับเป็นโหลหรือแท่งก็ได้ขึ้นอยู่กับจำนวนสั่งจ่ายของหน่วยงาน
+                            <strong class="text-gray-900">5. การกำหนดหน่วยนับ:</strong> การกำหนดหน่วยนับของวัสดุ ควรพิจารณาให้เหมาะสมกับการเบิกจ่ายวัสดุของหน่วยงาน เช่น ดินสอ สามารถกำหนดหน่วยนับเป็นโหลหรือแท่งก็ได้ขึ้นอยู่กับจำนวนสั่งจ่ายของหน่วยงาน
                         </div>
                         <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-xl">
-                            <strong class="text-gray-900">๖. ความรอบคอบและเป็นปัจจุบัน:</strong> การลงบัญชีวัสดุ จะต้องกระทำด้วยความละเอียดรอบคอบ จำเป็นต้องรวดเร็ว ทันเวลา เพื่อให้ยอดวัสดุคงเหลือถูกต้องตามจริง
+                            <strong class="text-gray-900">6. ความรอบคอบและเป็นปัจจุบัน:</strong> การลงบัญชีวัสดุ จะต้องกระทำด้วยความละเอียดรอบคอบ จำเป็นต้องรวดเร็ว ทันเวลา เพื่อให้ยอดวัสดุคงเหลือถูกต้องตามจริง
                         </div>
                         <div class="p-3 bg-purple-50 border-l-4 border-purple-500 rounded-r-xl">
-                            <strong class="text-purple-900">๗. หลักการตัดจ่าย FIFO และราคาคงเหลือสิ้นปี:</strong> กรณีที่ซื้อวัสดุชนิดเดียวกันในเวลาต่างกัน ราคาอาจไม่เท่ากัน เมื่อลงบัญชีจ่าย ให้ใช้ราคาวัสดุที่ซื้อมาก่อนตัดออกจากบัญชีก่อน (FIFO) ราคาวัสดุคงเหลือ ณ วันสิ้นปีงบประมาณจะเป็นราคาที่มีการจัดซื้อครั้งหลังสุด
+                            <strong class="text-purple-900">7. หลักการตัดจ่าย FIFO และราคาคงเหลือสิ้นปี:</strong> กรณีที่ซื้อวัสดุชนิดเดียวกันในเวลาต่างกัน ราคาอาจไม่เท่ากัน เมื่อลงบัญชีจ่าย ให้ใช้ราคาวัสดุที่ซื้อมาก่อนตัดออกจากบัญชีก่อน (FIFO) ราคาวัสดุคงเหลือ ณ วันสิ้นปีงบประมาณจะเป็นราคาที่มีการจัดซื้อครั้งหลังสุด
                         </div>
                         <div class="p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl">
-                            <strong class="text-blue-900">๘. หลักการควบคุมภายใน (Segregation of Duties):</strong> กรณีมีบุคลากรเพียงพอ ควรแบ่งแยกหน้าที่ระหว่างผู้บันทึกบัญชีวัสดุ และผู้ควบคุมคลังพัสดุเป็นคนละคนกัน ตามหลักการควบคุมภายในที่ดี
+                            <strong class="text-blue-900">8. หลักการควบคุมภายใน (Segregation of Duties):</strong> กรณีมีบุคลากรเพียงพอ ควรแบ่งแยกหน้าที่ระหว่างผู้บันทึกบัญชีวัสดุ และผู้ควบคุมคลังพัสดุเป็นคนละคนกัน ตามหลักการควบคุมภายในที่ดี
                         </div>
                     </div>
 
@@ -246,7 +246,7 @@
 
                         <div class="p-6 space-y-4">
                             <div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-medium border border-emerald-200">
-                                💡 <span class="font-bold">ข้อสังเกต:</span> ราคาต่อหน่วยต้องเป็นราคารวมภาษีมูลค่าเพิ่ม (VAT 7%) แล้วตามข้อกำหนดที่ ๔
+                                💡 <span class="font-bold">ข้อสังเกต:</span> ราคาต่อหน่วยต้องเป็นราคารวมภาษีมูลค่าเพิ่ม (VAT 7%) แล้วตามข้อกำหนดที่ 4
                             </div>
 
                             <div>

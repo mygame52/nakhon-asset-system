@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Carbon\Carbon;
 
 class MaterialController extends Controller
 {
@@ -67,6 +68,7 @@ class MaterialController extends Controller
             'location_name' => 'nullable|string|max:255',
             'min_stock' => 'nullable|integer|min:0',
             'max_stock' => 'nullable|integer|min:0',
+            'opening_balance_date' => 'nullable|date',
         ], [
             'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น หรือเว้นว่างไว้เพื่อให้ระบบสร้างรหัสใหม่อัตโนมัติ',
             'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
@@ -105,6 +107,21 @@ class MaterialController extends Controller
                     }
                 }
 
+                // Determine Opening Balance Date (Default: 30 Sep of previous fiscal year so it rolls over into 1 Oct)
+                $openingDate = $validated['opening_balance_date'] ?? null;
+                if (empty($openingDate)) {
+                    $now = now();
+                    $currentFyAD = $now->month >= 10 ? $now->year + 1 : $now->year;
+                    $openingDate = Carbon::createFromDate($currentFyAD - 1, 9, 30)->toDateString();
+                } else {
+                    $parsed = Carbon::parse($openingDate);
+                    if ($parsed->month == 10 && $parsed->day == 1) {
+                        $openingDate = $parsed->copy()->subDay()->toDateString();
+                    } else {
+                        $openingDate = $parsed->toDateString();
+                    }
+                }
+
                 $material = Material::create($validated);
 
                 // Record Initial Balance Transaction if stock_qty > 0
@@ -119,7 +136,7 @@ class MaterialController extends Controller
                         'party_name' => 'ยอดยกมาเริ่มต้น',
                         'reference_doc' => 'ยอดยกมา',
                         'note' => 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ',
-                        'transaction_date' => now()->toDateString(),
+                        'transaction_date' => $openingDate,
                         'status' => 'completed',
                     ]);
                 }

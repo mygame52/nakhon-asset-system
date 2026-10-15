@@ -6,7 +6,15 @@
 @section('content')
 <div x-data="{ 
     createModal: false, 
+    directModal: false,
     reqItems: [{ material_id: '', requested_qty: 1 }],
+    directItems: [{ material_id: '', quantity: 1 }],
+    directDate: '{{ date('Y-m-d') }}',
+    directCode: '',
+    directRequester: '',
+    directDept: '',
+    directReason: '',
+    isFetchingCode: false,
     addItem() {
         if (this.reqItems.length < 10) {
             this.reqItems.push({ material_id: '', requested_qty: 1 });
@@ -17,6 +25,38 @@
     removeItem(index) {
         if (this.reqItems.length > 1) {
             this.reqItems.splice(index, 1);
+        }
+    },
+    addDirectItem() {
+        if (this.directItems.length < 20) {
+            this.directItems.push({ material_id: '', quantity: 1 });
+        } else {
+            alert('บันทึกตัดจ่ายได้สูงสุด 20 รายการต่อ 1 ใบ');
+        }
+    },
+    removeDirectItem(index) {
+        if (this.directItems.length > 1) {
+            this.directItems.splice(index, 1);
+        }
+    },
+    fetchNextCode() {
+        this.isFetchingCode = true;
+        fetch('{{ url('requisitions/next-code') }}?date=' + this.directDate)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.code) {
+                    this.directCode = data.code;
+                }
+                this.isFetchingCode = false;
+            })
+            .catch(() => {
+                this.isFetchingCode = false;
+            });
+    },
+    openDirectModal() {
+        this.directModal = true;
+        if (!this.directCode) {
+            this.fetchNextCode();
         }
     }
 }">
@@ -109,6 +149,11 @@
                     <a href="{{ route('requisitions.export-csv', request()->query()) }}" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl shadow-md transition-all text-sm flex items-center">
                         <i class="fas fa-file-excel mr-1.5"></i> ส่งออก CSV (Excel)
                     </a>
+                    @hasanyrole('admin|procurement')
+                    <button type="button" @click="openDirectModal()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center text-sm">
+                        <i class="fas fa-bolt mr-2 text-amber-300"></i> บันทึกตัดจ่ายย้อนหลัง (อนุมัติทันที)
+                    </button>
+                    @endhasanyrole
                     <button type="button" @click="createModal = true" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-2 px-5 rounded-xl shadow-lg shadow-purple-500/20 transition-all active:scale-95 flex items-center text-sm">
                         <i class="fas fa-plus-circle mr-2"></i> ยื่นขอเบิกหลายรายการ
                     </button>
@@ -138,7 +183,7 @@
                             <div class="text-[11px] font-normal text-gray-400 mt-0.5">{{ $req->created_at->format('d/m/Y H:i') }}</div>
                         </td>
                         <td class="p-4 px-4">
-                            <div class="font-bold text-gray-800">{{ $req->user->name ?? '-' }}</div>
+                            <div class="font-bold text-gray-800">{{ $req->requester_display_name }}</div>
                             <div class="text-xs text-gray-500">{{ $req->department->name ?? '-' }}</div>
                         </td>
                         <td class="p-4 px-4">
@@ -299,6 +344,145 @@
             </div>
         </div>
     </template>
+
+    <!-- Direct Requisition / Backdated Entry Modal (เจ้าหน้าที่พัสดุ & Admin) -->
+    @hasanyrole('admin|procurement')
+    <template x-teleport="body">
+        <div x-show="directModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div x-show="directModal" @click="directModal = false" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div x-show="directModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full relative z-50">
+                    <form action="{{ route('requisitions.direct-store') }}" method="POST">
+                        @csrf
+                        <div class="bg-gradient-to-r from-emerald-600 to-teal-700 px-6 py-4 text-white flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-lg flex items-center">
+                                    <i class="fas fa-bolt mr-2 text-amber-300"></i> บันทึกตัดจ่ายพัสดุย้อนหลัง (อนุมัติทันที)
+                                </h3>
+                                <p class="text-xs text-emerald-100 mt-0.5">สำหรับบันทึกใบเบิกกระดาษในอดีต ตัดสต็อกและลงสมุดบัญชีคุมพัสดุทันที</p>
+                            </div>
+                            <button type="button" @click="directModal = false" class="text-white/70 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+                        </div>
+
+                        <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                            <!-- Date & Code Row -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                                <div>
+                                    <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1.5">
+                                        <i class="fas fa-calendar-alt text-emerald-600 mr-1"></i> วันที่ขอเบิก / ตัดจ่ายจริง <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="date" name="requisition_date" x-model="directDate" @change="fetchNextCode()" required class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                                    <p class="text-[11px] text-emerald-700 mt-1">💡 เปลี่ยนวันที่แล้ว เลขที่ใบเบิกจะอัปเดตตามปีงบประมาณอัตโนมัติ</p>
+                                </div>
+
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                                            <i class="fas fa-hashtag text-emerald-600 mr-1"></i> เลขที่ใบเบิก <span class="text-red-500">*</span>
+                                        </label>
+                                        <button type="button" @click="fetchNextCode()" class="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center">
+                                            <i class="fas fa-sync-alt mr-1" :class="isFetchingCode ? 'fa-spin' : ''"></i> รันเลขถัดไป
+                                        </button>
+                                    </div>
+                                    <input type="text" name="requisition_code" x-model="directCode" required placeholder="เช่น จ.001/2569" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                                    <p class="text-[11px] text-emerald-700 mt-1">สามารถแก้ไขเลขที่ตามกระดาษได้ (ระบบจะตรวจสอบไม่ให้ซ้ำกัน)</p>
+                                </div>
+                            </div>
+
+                            <!-- Requester Name & Department -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                                        <i class="fas fa-user-edit text-purple-600 mr-1"></i> ชื่อผู้ขอเบิก (พิมพ์ได้อิสระ) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" name="requester_name" x-model="directRequester" list="saved_requester_names" required placeholder="พิมพ์ชื่อผู้ขอเบิก หรือคลิกเลือกจากที่เคยบันทึก..." class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                                    <datalist id="saved_requester_names">
+                                        @foreach($pastRequesters as $pName)
+                                            <option value="{{ $pName }}"></option>
+                                        @endforeach
+                                    </datalist>
+                                    <p class="text-[11px] text-gray-500 mt-1">💡 ระบบจะจดจำชื่อนี้ไว้เป็นตัวเลือกอัตโนมัติสำหรับครั้งต่อไป</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                                        <i class="fas fa-building text-purple-600 mr-1"></i> กลุ่มงาน / แผนก
+                                    </label>
+                                    <select name="department_id" x-model="directDept" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                                        <option value="">-- ไม่ระบุ / ตามโปรไฟล์ --</option>
+                                        @foreach($departments as $dept)
+                                            <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Purpose -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">วัตถุประสงค์ / งานที่นำไปใช้</label>
+                                <input type="text" name="reason_for_request" x-model="directReason" placeholder="เช่น ใช้จัดกิจกรรมอบรม, งานธุรการประจำวัน (เว้นว่างได้)" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                            </div>
+
+                            <!-- Disbursed Materials Table -->
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                        รายการวัสดุที่จ่ายจริง <span class="text-red-500">*</span>
+                                        <span class="text-[11px] font-normal text-emerald-700 ml-2" x-text="'(' + directItems.length + '/20 รายการ)'"></span>
+                                    </label>
+                                    <button type="button" @click="addDirectItem()" :disabled="directItems.length >= 20" :class="{'opacity-50 cursor-not-allowed': directItems.length >= 20}" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
+                                        <i class="fas fa-plus mr-1"></i> เพิ่มรายการวัสดุ
+                                    </button>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <template x-for="(item, index) in directItems" :key="index">
+                                        <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3">
+                                            <div class="flex-1">
+                                                <select :name="'items[' + index + '][material_id]'" x-model="item.material_id" required class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500">
+                                                    <option value="">-- เลือกวัสดุ --</option>
+                                                    @foreach($materials as $mat)
+                                                        <option value="{{ $mat->id }}">
+                                                            {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }})
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+
+                                            <div class="w-32">
+                                                <input type="number" :name="'items[' + index + '][quantity]'" x-model="item.quantity" min="1" required placeholder="จำนวนจ่าย" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-center text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-500">
+                                            </div>
+
+                                            <button type="button" @click="removeDirectItem(index)" :disabled="directItems.length === 1" class="text-gray-400 hover:text-rose-600 p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                                <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
+                                <div>
+                                    <strong>ผลการบันทึก:</strong> ระบบจะถือว่าใบเบิกนี้ได้รับการอนุมัติเรียบร้อยแล้ว โดยจะทำการตัดสต็อกคงเหลือ และนำไปลงใน <strong>สมุดบัญชีวัสดุ (Stock Card)</strong> ของวันที่ระบุให้อัตโนมัติทันที
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                            <button type="button" @click="directModal = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
+                            <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl text-sm shadow-md hover:from-emerald-700 hover:to-teal-700 flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i> บันทึกตัดจ่ายทันที
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </template>
+    @endhasanyrole
 
 </div>
 @endsection

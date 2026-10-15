@@ -11,10 +11,16 @@ class Requisition extends Model
     protected $fillable = [
         'requisition_code',
         'user_id',
+        'requester_name',
         'department_id',
         'status',
         'reason_for_request',
     ];
+
+    public function getRequesterDisplayNameAttribute(): string
+    {
+        return !empty($this->requester_name) ? $this->requester_name : ($this->user ? $this->user->name : '-');
+    }
 
     public function user(): BelongsTo
     {

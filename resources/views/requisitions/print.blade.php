@@ -153,7 +153,7 @@
                                 &nbsp;
                             </span>ผู้เบิก
                         </div>
-                        <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $requisition->user->name ?? '........................................................' }} )</div>
+                        <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $requisition->requester_display_name !== '-' ? $requisition->requester_display_name : '........................................................' }} )</div>
                         <div style="margin-top: 1px; width: 100%; text-align: center;">ตำแหน่ง<span class="dots" style="min-width: 180px;"></span></div>
                         <div style="margin-top: 2px; width: 100%; text-align: center; font-size: 14pt;">ได้มอบให้<span class="dots" style="min-width: 170px;"></span>เป็นผู้รับของแทน</div>
                         <div style="margin-top: 1px; width: 100%; text-align: center; font-size: 14pt;">(ลงชื่อ)<span class="dots" style="min-width: 140px;"></span>ผู้รับมอบ</div>
@@ -171,7 +171,7 @@
                                 &nbsp;
                             </span>ผู้รับของ
                         </div>
-                        <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $requisition->user->name ?? '........................................................' }} )</div>
+                        <div style="margin-top: 1px; width: 100%; text-align: center;">( {{ $requisition->requester_display_name !== '-' ? $requisition->requester_display_name : '........................................................' }} )</div>
                         <div style="margin-top: 1px; width: 100%; text-align: center;">ตำแหน่ง<span class="dots" style="min-width: 180px;"></span></div>
                     </div>
                     

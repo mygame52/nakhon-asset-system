@@ -47,6 +47,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('requisitions/items/{item}/officer-approve', [MaterialRequisitionController::class, 'officerApproveItem'])->name('requisitions.officer-approve-item');
         Route::post('requisitions/items/{item}/approve', [MaterialRequisitionController::class, 'approveItem'])->name('requisitions.approve-item');
         Route::post('requisitions/items/{item}/reject', [MaterialRequisitionController::class, 'rejectItem'])->name('requisitions.reject-item');
+        Route::get('requisitions/next-code', [MaterialRequisitionController::class, 'getNextCode'])->name('requisitions.next-code');
+        Route::post('requisitions/direct', [MaterialRequisitionController::class, 'storeDirect'])->name('requisitions.direct-store');
 
         // Material Stock Cards Actions (บันทึกรับเข้า & ตั้งค่าอย่างต่ำ/สูง)
         Route::post('materials/generate-ai-specs', [\App\Http\Controllers\MaterialAiController::class, 'generateSpecs'])->name('materials.generate-ai-specs');

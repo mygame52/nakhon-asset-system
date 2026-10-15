@@ -29,6 +29,7 @@ class MaterialRequisitionController extends Controller
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sq) use ($search) {
                     $sq->where('requisition_code', 'like', "%{$search}%")
+                      ->orWhere('requester_name', 'like', "%{$search}%")
                       ->orWhereHas('user', function ($uq) use ($search) {
                           $uq->where('name', 'like', "%{$search}%");
                       })
@@ -55,10 +56,20 @@ class MaterialRequisitionController extends Controller
         }
 
         $requisitions = $query->latest()->paginate(15)->withQueryString();
-        $materials = Material::where('stock_qty', '>', 0)->get();
-        $departments = Department::all();
+        $materials = Material::where('stock_qty', '>', 0)->orderBy('name', 'asc')->get();
+        $departments = Department::orderBy('name', 'asc')->get();
 
-        return view('requisitions.index', compact('requisitions', 'materials', 'departments'));
+        // Remember past requesters for smart autocomplete
+        $pastRequesters = Requisition::whereNotNull('requester_name')
+            ->where('requester_name', '!=', '')
+            ->distinct()
+            ->pluck('requester_name')
+            ->merge(User::pluck('name'))
+            ->unique()
+            ->filter()
+            ->values();
+
+        return view('requisitions.index', compact('requisitions', 'materials', 'departments', 'pastRequesters'));
     }
 
     public function store(Request $request)
@@ -129,6 +140,152 @@ class MaterialRequisitionController extends Controller
         });
 
         return redirect()->route('requisitions.index')->with('success', 'ส่งคำขอเบิกวัสดุเรียบร้อยแล้ว อยู่ระหว่างรอการอนุมัติ');
+    }
+
+    /**
+     * Get the next collision-free requisition code for a specific date (JSON endpoint).
+     */
+    public function getNextCode(Request $request)
+    {
+        $dateStr = $request->input('date', now()->toDateString());
+        $date = Carbon::parse($dateStr);
+        $yearBE = $date->month >= 10 ? ($date->year + 543 + 1) : ($date->year + 543);
+
+        $seq = 1;
+        do {
+            $candidate = sprintf('จ.%03d/%d', $seq, $yearBE);
+            $exists = Requisition::where('requisition_code', $candidate)->exists();
+            if ($exists) {
+                $seq++;
+            }
+        } while ($exists);
+
+        return response()->json([
+            'success' => true,
+            'code' => $candidate,
+            'year_be' => $yearBE,
+        ]);
+    }
+
+    /**
+     * Store a backdated direct requisition (บันทึกตัดจ่ายพัสดุย้อนหลัง - อนุมัติทันที)
+     */
+    public function storeDirect(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->hasAnyRole(['admin', 'procurement'])) {
+            return back()->with('error', 'คุณไม่มีสิทธิ์ใช้งานการบันทึกตัดจ่ายพัสดุย้อนหลัง');
+        }
+
+        $validated = $request->validate([
+            'requisition_code' => 'nullable|string|max:100|unique:requisitions,requisition_code',
+            'requisition_date' => 'required|date',
+            'requester_name' => 'required|string|max:255',
+            'department_id' => 'nullable|exists:departments,id',
+            'reason_for_request' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1|max:20',
+            'items.*.material_id' => 'required|exists:materials,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ], [
+            'requisition_code.unique' => 'เลขที่ใบเบิกนี้มีอยู่ในระบบแล้ว โปรดระบุเลขที่อื่นที่ไม่ซ้ำกัน',
+            'requisition_date.required' => 'กรุณาระบุวันที่ขอเบิก/ตัดจ่ายพัสดุ',
+            'requester_name.required' => 'กรุณาระบุชื่อผู้ขอเบิก',
+            'items.min' => 'กรุณาเลือกรายการวัสดุอย่างน้อย 1 รายการ',
+            'items.*.material_id.required' => 'กรุณาเลือกวัสดุ',
+            'items.*.quantity.min' => 'จำนวนที่จ่ายต้องมีค่าอย่างน้อย 1',
+        ]);
+
+        // Check for duplicate materials in the same submission
+        $materialIds = array_column($validated['items'], 'material_id');
+        if (count($materialIds) !== count(array_unique($materialIds))) {
+            return back()->withInput()->with('error', 'พบรายการวัสดุซ้ำกันในใบเบิกเดียว กรุณารวมเป็นรายการเดียว');
+        }
+
+        $reqDate = Carbon::parse($validated['requisition_date']);
+        $yearBE = $reqDate->month >= 10 ? ($reqDate->year + 543 + 1) : ($reqDate->year + 543);
+
+        // Auto-run requisition code if not specified or empty
+        $reqCode = trim($validated['requisition_code'] ?? '');
+        if (empty($reqCode)) {
+            $seq = 1;
+            do {
+                $candidate = sprintf('จ.%03d/%d', $seq, $yearBE);
+                $exists = Requisition::where('requisition_code', $candidate)->exists();
+                if ($exists) {
+                    $seq++;
+                }
+            } while ($exists);
+            $reqCode = $candidate;
+        }
+
+        // Check stock availability
+        foreach ($validated['items'] as $itemData) {
+            $material = Material::find($itemData['material_id']);
+            if ($material->stock_qty < $itemData['quantity']) {
+                return back()->withInput()->with('error', "จำนวนวัสดุ '{$material->name}' ในสต็อกไม่เพียงพอ (คงเหลือ: {$material->stock_qty} {$material->unit})");
+            }
+        }
+
+        DB::transaction(function () use ($validated, $user, $reqCode, $reqDate) {
+            $department = !empty($validated['department_id']) ? Department::find($validated['department_id']) : null;
+            $deptName = $department ? $department->name : '';
+            $requesterName = trim($validated['requester_name']);
+
+            $requisition = Requisition::create([
+                'requisition_code' => $reqCode,
+                'user_id' => $user->id,
+                'requester_name' => $requesterName,
+                'department_id' => $validated['department_id'] ?? null,
+                'status' => 'approved',
+                'reason_for_request' => $validated['reason_for_request'] ?: 'บันทึกจ่ายพัสดุย้อนหลังตามเอกสารกระดาษ',
+                'created_at' => $reqDate,
+                'updated_at' => $reqDate,
+            ]);
+
+            foreach ($validated['items'] as $itemData) {
+                $material = Material::lockForUpdate()->find($itemData['material_id']);
+                $qty = (int) $itemData['quantity'];
+
+                RequisitionItem::create([
+                    'requisition_id' => $requisition->id,
+                    'material_id' => $material->id,
+                    'requested_qty' => $qty,
+                    'approved_qty' => $qty,
+                    'status' => 'approved',
+                    'admin_note' => 'อนุมัติจ่ายตามเอกสารกระดาษ (บันทึกย้อนหลัง)',
+                    'approved_by' => $user->id,
+                    'approved_at' => $reqDate,
+                    'officer_approved_by' => $user->id,
+                    'officer_approved_at' => $reqDate,
+                    'officer_note' => 'เห็นชอบตามเอกสารกระดาษ',
+                    'created_at' => $reqDate,
+                    'updated_at' => $reqDate,
+                ]);
+
+                // Deduct stock
+                $material->stock_qty -= $qty;
+                $material->save();
+
+                // Log Outward Transaction for Stock Card
+                $partyDisplay = $requesterName . (!empty($deptName) ? " ({$deptName})" : '');
+                Transaction::create([
+                    'transaction_type' => 'out',
+                    'item_type' => 'material',
+                    'item_id' => $material->id,
+                    'quantity' => $qty,
+                    'unit_price' => $material->unit_price,
+                    'user_id' => $user->id,
+                    'party_name' => $partyDisplay,
+                    'reference_doc' => $reqCode,
+                    'note' => 'เบิกจ่ายตามใบเบิก ' . $reqCode . (!empty($validated['reason_for_request']) ? ' (' . $validated['reason_for_request'] . ')' : ''),
+                    'transaction_date' => $reqDate->toDateString(),
+                    'created_at' => $reqDate,
+                    'status' => 'completed',
+                ]);
+            }
+        });
+
+        return redirect()->route('requisitions.index')->with('success', "บันทึกตัดจ่ายพัสดุย้อนหลังเลขที่ {$reqCode} เรียบร้อยแล้ว (ตัดสต็อกและลงสมุดบัญชีวัสดุให้อัตโนมัติ)");
     }
 
     public function show(Requisition $requisition)

@@ -252,7 +252,7 @@
                                 &nbsp;
                             </span> ผู้เบิก
                         </div>
-                        <div class="mt-0.5 w-full text-center">( {{ $requisition->user->name ?? '........................................................' }} )</div>
+                        <div class="mt-0.5 w-full text-center">( {{ $requisition->requester_display_name !== '-' ? $requisition->requester_display_name : '........................................................' }} )</div>
                         <div class="mt-0.5 w-full text-center">ตำแหน่ง ........................................................</div>
                         <div class="mt-1 w-full text-center">ได้มอบให้ <span class="font-bold border-b border-dotted border-gray-400 px-3 inline-block" style="min-width: 170px;"></span> เป็นผู้รับของแทน</div>
                         <div class="mt-0.5 w-full text-center">(ลงชื่อ) <span class="font-bold border-b border-dotted border-gray-400 px-4">........................................................</span> ผู้รับมอบ</div>
@@ -270,7 +270,7 @@
                                 &nbsp;
                             </span> ผู้รับของ
                         </div>
-                        <div class="mt-0.5 w-full text-center">( {{ $requisition->user->name ?? '........................................................' }} )</div>
+                        <div class="mt-0.5 w-full text-center">( {{ $requisition->requester_display_name !== '-' ? $requisition->requester_display_name : '........................................................' }} )</div>
                         <div class="mt-0.5 w-full text-center">ตำแหน่ง ........................................................</div>
                     </div>
                     

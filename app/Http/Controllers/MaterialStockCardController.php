@@ -68,15 +68,18 @@ class MaterialStockCardController extends Controller
         $fyStart = Carbon::createFromDate($fiscalYearAD - 1, 10, 1)->startOfDay();
         $fyEnd = Carbon::createFromDate($fiscalYearAD, 9, 30)->endOfDay();
 
-        // Calculate Opening Balance prior to fyStart (including initial balance or any initial opening balance registered for this fiscal year)
+        // Calculate Opening Balance prior to fyStart (including initial balance on fyStart)
         $priorIn = Transaction::where('item_type', 'material')
             ->where('item_id', $material->id)
             ->where('transaction_type', 'in')
-            ->where(function ($q) use ($fyStart, $fyEnd) {
+            ->where(function ($q) use ($fyStart) {
                 $q->whereDate('transaction_date', '<', $fyStart->toDateString())
-                  ->orWhere(function ($sq) use ($fyEnd) {
-                      $sq->where('reference_doc', 'ยอดยกมา')
-                         ->whereDate('transaction_date', '<=', $fyEnd->toDateString());
+                  ->orWhere(function ($sq) use ($fyStart) {
+                      $sq->whereDate('transaction_date', '=', $fyStart->toDateString())
+                         ->where(function ($inQ) {
+                             $inQ->where('reference_doc', 'ยอดยกมา')
+                                 ->orWhere('party_name', 'ยอดยกมาเริ่มต้น');
+                         });
                   });
             })
             ->sum('quantity');
@@ -95,9 +98,17 @@ class MaterialStockCardController extends Controller
             ->where('item_id', $material->id)
             ->whereDate('transaction_date', '>=', $fyStart->toDateString())
             ->whereDate('transaction_date', '<=', $fyEnd->toDateString())
-            ->where(function ($q) {
-                $q->whereNull('reference_doc')
-                  ->orWhere('reference_doc', '!=', 'ยอดยกมา');
+            ->where(function ($q) use ($fyStart) {
+                $q->whereDate('transaction_date', '>', $fyStart->toDateString())
+                  ->orWhere(function ($sq) {
+                      $sq->where(function ($inQ) {
+                          $inQ->whereNull('reference_doc')
+                              ->orWhere('reference_doc', '!=', 'ยอดยกมา');
+                      })->where(function ($inQ2) {
+                          $inQ2->whereNull('party_name')
+                               ->orWhere('party_name', '!=', 'ยอดยกมาเริ่มต้น');
+                      });
+                  });
             })
             ->orderBy('transaction_date', 'asc')
             ->orderBy('created_at', 'asc')
@@ -176,15 +187,18 @@ class MaterialStockCardController extends Controller
         $fyStart = Carbon::createFromDate($fiscalYearAD - 1, 10, 1)->startOfDay();
         $fyEnd = Carbon::createFromDate($fiscalYearAD, 9, 30)->endOfDay();
 
-        // Calculate Opening Balance prior to fyStart (including initial balance or any initial opening balance registered for this fiscal year)
+        // Calculate Opening Balance prior to fyStart (including initial balance on fyStart)
         $priorIn = Transaction::where('item_type', 'material')
             ->where('item_id', $material->id)
             ->where('transaction_type', 'in')
-            ->where(function ($q) use ($fyStart, $fyEnd) {
+            ->where(function ($q) use ($fyStart) {
                 $q->whereDate('transaction_date', '<', $fyStart->toDateString())
-                  ->orWhere(function ($sq) use ($fyEnd) {
-                      $sq->where('reference_doc', 'ยอดยกมา')
-                         ->whereDate('transaction_date', '<=', $fyEnd->toDateString());
+                  ->orWhere(function ($sq) use ($fyStart) {
+                      $sq->whereDate('transaction_date', '=', $fyStart->toDateString())
+                         ->where(function ($inQ) {
+                             $inQ->where('reference_doc', 'ยอดยกมา')
+                                 ->orWhere('party_name', 'ยอดยกมาเริ่มต้น');
+                         });
                   });
             })
             ->sum('quantity');
@@ -203,9 +217,17 @@ class MaterialStockCardController extends Controller
             ->where('item_id', $material->id)
             ->whereDate('transaction_date', '>=', $fyStart->toDateString())
             ->whereDate('transaction_date', '<=', $fyEnd->toDateString())
-            ->where(function ($q) {
-                $q->whereNull('reference_doc')
-                  ->orWhere('reference_doc', '!=', 'ยอดยกมา');
+            ->where(function ($q) use ($fyStart) {
+                $q->whereDate('transaction_date', '>', $fyStart->toDateString())
+                  ->orWhere(function ($sq) {
+                      $sq->where(function ($inQ) {
+                          $inQ->whereNull('reference_doc')
+                              ->orWhere('reference_doc', '!=', 'ยอดยกมา');
+                      })->where(function ($inQ2) {
+                          $inQ2->whereNull('party_name')
+                               ->orWhere('party_name', '!=', 'ยอดยกมาเริ่มต้น');
+                      });
+                  });
             })
             ->orderBy('transaction_date', 'asc')
             ->orderBy('created_at', 'asc')

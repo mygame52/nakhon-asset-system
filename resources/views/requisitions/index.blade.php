@@ -234,6 +234,15 @@
                         </div>
 
                         <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                            <!-- Requisition Date (Backdated Support) -->
+                            <div class="p-4 bg-purple-50/70 border border-purple-200/70 rounded-xl space-y-1">
+                                <label class="block text-xs font-bold text-purple-900 uppercase tracking-wider">
+                                    <i class="fas fa-calendar-alt mr-1 text-purple-600"></i> วันที่ขอเบิกพัสดุ (ระบุวันที่ย้อนหลังได้) <span class="text-red-500">*</span>
+                                </label>
+                                <input type="date" name="requisition_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-sm font-semibold text-purple-900 focus:ring-2 focus:ring-purple-500 outline-none">
+                                <p class="text-[11px] text-purple-700">💡 หากเป็นการบันทึกเอกสารใบเบิกย้อนหลัง ให้ระบุวันที่ตามเอกสารจริง เพื่อให้ยอดในสมุดบัญชีวัสดุตรงตามปีงบประมาณ</p>
+                            </div>
+
                             <!-- Purpose -->
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">วัตถุประสงค์ / เหตุผลในการขอเบิก <span class="text-red-500">*</span></label>

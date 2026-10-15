@@ -288,7 +288,7 @@
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
                 <div x-show="officerApproveModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
-                    <form x-bind:action="'/requisitions/items/' + (selectedItem ? selectedItem.id : '') + '/officer-approve'" method="POST">
+                    <form x-bind:action="'{{ url('requisitions/items') }}/' + (selectedItem ? selectedItem.id : '') + '/officer-approve'" method="POST">
                         @csrf
                         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white flex justify-between items-center">
                             <h3 class="font-bold text-lg flex items-center">
@@ -335,7 +335,7 @@
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
                 <div x-show="headApproveModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
-                    <form x-bind:action="'/requisitions/items/' + (selectedItem ? selectedItem.id : '') + '/approve'" method="POST">
+                    <form x-bind:action="'{{ url('requisitions/items') }}/' + (selectedItem ? selectedItem.id : '') + '/approve'" method="POST">
                         @csrf
                         <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white flex justify-between items-center">
                             <h3 class="font-bold text-lg flex items-center">
@@ -391,7 +391,7 @@
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
                 <div x-show="rejectModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
-                    <form x-bind:action="'/requisitions/items/' + (selectedItem ? selectedItem.id : '') + '/reject'" method="POST">
+                    <form x-bind:action="'{{ url('requisitions/items') }}/' + (selectedItem ? selectedItem.id : '') + '/reject'" method="POST">
                         @csrf
                         <div class="bg-gradient-to-r from-rose-600 to-red-600 px-6 py-4 text-white flex justify-between items-center">
                             <h3 class="font-bold text-lg flex items-center">

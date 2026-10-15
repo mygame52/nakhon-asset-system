@@ -197,7 +197,14 @@ class MaterialController extends Controller
     public function edit(Material $material)
     {
         $categories = Category::where('type', 'material')->orderBy('code_prefix', 'asc')->get();
-        return view('materials.edit', compact('material', 'categories'));
+        $initialTx = Transaction::where('item_type', 'material')
+            ->where('item_id', $material->id)
+            ->where('transaction_type', 'in')
+            ->orderBy('transaction_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->first();
+
+        return view('materials.edit', compact('material', 'categories', 'initialTx'));
     }
 
     /**
@@ -221,6 +228,10 @@ class MaterialController extends Controller
             'location_name' => 'nullable|string|max:255',
             'min_stock' => 'nullable|integer|min:0',
             'max_stock' => 'nullable|integer|min:0',
+            'transaction_date' => 'nullable|date',
+            'initial_stock_type' => 'nullable|string|in:opening_balance,first_receipt',
+            'receipt_party_name' => 'nullable|string|max:255',
+            'receipt_ref_doc' => 'nullable|string|max:255',
         ], [
             'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น',
             'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
@@ -229,23 +240,91 @@ class MaterialController extends Controller
         ]);
 
         try {
-            // Release code if held by another soft-deleted item
-            if (!empty($validated['material_code'])) {
-                $trashed = Material::onlyTrashed()->where('material_code', $validated['material_code'])->where('id', '!=', $material->id)->first();
-                if ($trashed) {
-                    $trashed->material_code = $trashed->material_code . '_del_' . $trashed->id;
-                    $trashed->save();
+            DB::transaction(function () use ($material, $validated, $request) {
+                // Release code if held by another soft-deleted item
+                if (!empty($validated['material_code'])) {
+                    $trashed = Material::onlyTrashed()->where('material_code', $validated['material_code'])->where('id', '!=', $material->id)->first();
+                    if ($trashed) {
+                        $trashed->material_code = $trashed->material_code . '_del_' . $trashed->id;
+                        $trashed->save();
+                    }
                 }
-            }
 
-            $material->update($validated);
+                $materialData = collect($validated)->except([
+                    'transaction_date', 'initial_stock_type', 'receipt_party_name', 'receipt_ref_doc'
+                ])->all();
+
+                $material->update($materialData);
+
+                // Update or Create Initial Stock Transaction
+                $txDate = $request->input('transaction_date');
+                if (!empty($txDate)) {
+                    $stockType = $request->input('initial_stock_type', 'first_receipt');
+                    $parsedDate = Carbon::parse($txDate);
+
+                    $initialTx = Transaction::where('item_type', 'material')
+                        ->where('item_id', $material->id)
+                        ->where('transaction_type', 'in')
+                        ->orderBy('transaction_date', 'asc')
+                        ->orderBy('id', 'asc')
+                        ->first();
+
+                    if ($stockType === 'opening_balance') {
+                        if ($parsedDate->month == 10 && $parsedDate->day == 1) {
+                            $parsedDate = $parsedDate->copy()->subDay();
+                        }
+                        $partyName = 'ยอดยกมาเริ่มต้น';
+                        $refDoc = 'ยอดยกมา';
+                        $note = 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ';
+                    } else {
+                        $partyName = trim($request->input('receipt_party_name', ''));
+                        $refDoc = trim($request->input('receipt_ref_doc', ''));
+                        $partyName = !empty($partyName) ? $partyName : 'รับเข้าพัสดุเริ่มต้น';
+                        $refDoc = !empty($refDoc) ? $refDoc : 'รับเข้าสต็อก';
+                        $note = 'รับเข้าพัสดุครั้งแรก';
+                    }
+
+                    if ($initialTx) {
+                        $initialTx->transaction_date = $parsedDate->toDateString();
+                        $initialTx->party_name = $partyName;
+                        $initialTx->reference_doc = $refDoc;
+                        $initialTx->note = $note;
+                        if (isset($validated['unit_price'])) {
+                            $initialTx->unit_price = $validated['unit_price'];
+                        }
+
+                        $hasOut = Transaction::where('item_type', 'material')
+                            ->where('item_id', $material->id)
+                            ->where('transaction_type', 'out')
+                            ->exists();
+                        if (!$hasOut) {
+                            $initialTx->quantity = $validated['stock_qty'];
+                        }
+                        $initialTx->save();
+                    } elseif ($validated['stock_qty'] > 0) {
+                        Transaction::create([
+                            'transaction_type' => 'in',
+                            'item_type' => 'material',
+                            'item_id' => $material->id,
+                            'quantity' => $validated['stock_qty'],
+                            'unit_price' => $validated['unit_price'] ?? $material->unit_price,
+                            'user_id' => Auth::id() ?? 1,
+                            'party_name' => $partyName,
+                            'reference_doc' => $refDoc,
+                            'note' => $note,
+                            'transaction_date' => $parsedDate->toDateString(),
+                            'status' => 'completed',
+                        ]);
+                    }
+                }
+            });
         } catch (UniqueConstraintViolationException $e) {
             return back()->withInput()->withErrors([
                 'material_code' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น'
             ]);
         }
 
-        return redirect()->route('materials.index')->with('success', 'ปรับปรุงข้อมูลรายการวัสดุเรียบร้อยแล้ว');
+        return redirect()->route('materials.index')->with('success', 'ปรับปรุงข้อมูลรายการวัสดุและวันที่คุมสต็อกเรียบร้อยแล้ว');
     }
 
     /**

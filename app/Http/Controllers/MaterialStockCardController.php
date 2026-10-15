@@ -119,8 +119,8 @@ class MaterialStockCardController extends Controller
         $entries = [];
         $runningBalance = $openingBalance;
 
-        // First Entry: Opening Balance if prior transactions exist or opening balance > 0
-        if ($openingBalance > 0 || $rawTransactions->isNotEmpty()) {
+        // First Entry: Opening Balance ONLY when opening balance > 0
+        if ($openingBalance > 0) {
             $entries[] = (object) [
                 'id' => 0,
                 'date' => $fyStart->toDateString(),
@@ -237,7 +237,8 @@ class MaterialStockCardController extends Controller
         $entries = [];
         $runningBalance = $openingBalance;
 
-        if ($openingBalance > 0 || $rawTransactions->isNotEmpty()) {
+        // First Entry: Opening Balance ONLY when opening balance > 0
+        if ($openingBalance > 0) {
             $entries[] = (object) [
                 'date' => $fyStart,
                 'party_name' => 'ยอดยกมาจากปีงบประมาณ ' . ($fiscalYearBE - 1),

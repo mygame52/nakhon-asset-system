@@ -4,12 +4,47 @@
 @section('page_description', 'ปรับปรุงข้อมูลการคุมคลังและสเปกวัสดุตามระเบียบกระทรวงการคลัง')
 
 @section('content')
+@php
+    $txDate = null;
+    $stockMode = 'first_receipt';
+    $initialParty = '';
+    $initialRefDoc = '';
+
+    if (isset($initialTx) && $initialTx) {
+        $txDate = $initialTx->transaction_date ? \Carbon\Carbon::parse($initialTx->transaction_date)->format('Y-m-d') : \Carbon\Carbon::parse($initialTx->created_at)->format('Y-m-d');
+        if ($initialTx->reference_doc === 'ยอดยกมา' || $initialTx->party_name === 'ยอดยกมาเริ่มต้น') {
+            $stockMode = 'opening_balance';
+        } else {
+            $stockMode = 'first_receipt';
+            $initialParty = $initialTx->party_name !== 'รับเข้าพัสดุเริ่มต้น' ? $initialTx->party_name : '';
+            $initialRefDoc = $initialTx->reference_doc !== 'รับเข้าสต็อก' ? $initialTx->reference_doc : '';
+        }
+    } else {
+        $txDate = \Carbon\Carbon::parse($material->created_at)->format('Y-m-d');
+    }
+@endphp
 <div class="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 space-y-6" x-data="{
     name: '{{ old('name', addslashes($material->name)) }}',
     unit: '{{ old('unit', addslashes($material->unit)) }}',
     specs: '{{ old('specs', addslashes($material->specs ?? '')) }}',
+    stockMode: '{{ old('initial_stock_type', $stockMode) }}',
+    receiptDate: '{{ old('transaction_date', $txDate) }}',
+    receiptParty: '{{ old('receipt_party_name', addslashes($initialParty)) }}',
+    receiptDoc: '{{ old('receipt_ref_doc', addslashes($initialRefDoc)) }}',
     aiGenerating: false,
     isSubmitting: false,
+    getFiscalYearBadge(dateStr) {
+        if (!dateStr) return '';
+        let parts = dateStr.split('-');
+        if (parts.length < 3) return '';
+        let y = parseInt(parts[0], 10);
+        let m = parseInt(parts[1], 10);
+        let d = parseInt(parts[2], 10);
+        if (isNaN(y) || isNaN(m) || isNaN(d)) return '';
+        let fy = (m >= 10) ? (y + 543 + 1) : (y + 543);
+        let thMonths = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        return '📅 ตรงกับวันที่ ' + d + ' ' + (thMonths[m] || '') + ' ' + (y + 543) + ' (จัดลงในสมุดบัญชีวัสดุปีงบประมาณ พ.ศ. ' + fy + ')';
+    },
     generateAiSpecs() {
         if (!this.name.trim()) {
             alert('กรุณากรอกชื่อรายการวัสดุก่อนใช้งาน AI แนะนำสเปก');
@@ -195,15 +230,80 @@
                 </div>
             </div>
 
-            <div class="mt-6 p-5 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
-                <div>
-                    <label class="block text-sm font-extrabold text-purple-900 uppercase tracking-wider">
-                        จำนวนคงเหลือปัจจุบันในสต็อก <span class="text-red-500">*</span>
-                    </label>
-                    <p class="text-xs text-purple-700 mt-1 font-medium">ยอดคงเหลือปรับปรุงในคลังวัสดุ</p>
+            <!-- กล่องตั้งค่าและแก้ไขวันที่สำหรับคุมสต็อกย้อนหลัง -->
+            <div class="mt-6 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl shadow-sm space-y-5">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <label class="block text-sm font-extrabold text-purple-900 uppercase tracking-wider">
+                            จำนวนคงเหลือปัจจุบันในสต็อก <span class="text-red-500">*</span>
+                        </label>
+                        <p class="text-xs text-purple-700 mt-1 font-medium">ยอดคงเหลือพัสดุในคลังวัสดุ</p>
+                    </div>
+                    <div class="w-full md:w-48">
+                        <input type="number" name="stock_qty" value="{{ old('stock_qty', $material->stock_qty) }}" min="0" required class="w-full px-4 py-3 bg-white border border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 text-xl font-extrabold text-center text-purple-900 outline-none shadow-sm">
+                    </div>
                 </div>
-                <div class="w-full md:w-48">
-                    <input type="number" name="stock_qty" value="{{ old('stock_qty', $material->stock_qty) }}" min="0" required class="w-full px-4 py-3 bg-white border border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 text-xl font-extrabold text-center text-purple-900 outline-none shadow-sm">
+
+                <div class="pt-4 border-t border-purple-200/60 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-extrabold text-purple-900 uppercase tracking-wider">
+                            <i class="fas fa-calendar-alt text-purple-600 mr-1.5"></i> วันที่ตั้งต้นสต็อก / รับเข้าพัสดุ (สำหรับปรับปรุงย้อนหลัง)
+                        </label>
+                        <span class="text-xs font-medium text-purple-700 bg-purple-100/80 px-3 py-1 rounded-full">
+                            สำหรับจัดลงปีงบประมาณในสมุดบัญชีวัสดุ
+                        </span>
+                    </div>
+
+                    <!-- Radio mode selector -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label class="flex items-center p-3.5 bg-white border rounded-xl cursor-pointer transition-all" :class="stockMode === 'first_receipt' ? 'border-purple-600 ring-2 ring-purple-400/40 shadow-sm' : 'border-gray-200 hover:bg-gray-50'">
+                            <input type="radio" name="initial_stock_type" value="first_receipt" x-model="stockMode" class="text-purple-600 focus:ring-purple-500 mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-900">1. รับเข้าพัสดุ (ระบุวันที่รับจริง)</div>
+                                <div class="text-[11px] text-gray-500">เช่น 14 ต.ค. 2568 (แถวรับเข้าในสมุดบัญชี)</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-center p-3.5 bg-white border rounded-xl cursor-pointer transition-all" :class="stockMode === 'opening_balance' ? 'border-purple-600 ring-2 ring-purple-400/40 shadow-sm' : 'border-gray-200 hover:bg-gray-50'">
+                            <input type="radio" name="initial_stock_type" value="opening_balance" x-model="stockMode" class="text-purple-600 focus:ring-purple-500 mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-900">2. ยอดยกมาจากปีก่อนหน้า</div>
+                                <div class="text-[11px] text-gray-500">ตั้งต้น ณ วันที่ 1 ต.ค. (แถวที่ 1 ยอดยกมา)</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Date & Details Inputs -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                วันที่ทำรายการ <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <input type="date" name="transaction_date" x-model="receiptDate" required class="w-full px-3 py-2.5 bg-white border border-purple-300 rounded-xl text-xs font-bold text-purple-900 focus:ring-2 focus:ring-purple-500 outline-none shadow-sm">
+                            </div>
+                            <p class="text-[11px] font-bold text-purple-700 mt-1.5" x-text="getFiscalYearBadge(receiptDate)"></p>
+                        </div>
+
+                        <div x-show="stockMode === 'first_receipt'">
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ)
+                            </label>
+                            <input type="text" name="receipt_party_name" x-model="receiptParty" placeholder="เช่น ร้านค้า หรือ จัดซื้อตามสัญญา" class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl text-xs font-medium text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none shadow-sm">
+                        </div>
+
+                        <div x-show="stockMode === 'first_receipt'">
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                                เลขที่เอกสาร (PO / ใบส่งของ)
+                            </label>
+                            <input type="text" name="receipt_ref_doc" x-model="receiptDoc" placeholder="เช่น PO-68001 หรือ ใบส่งของ" class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl text-xs font-medium text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="p-3.5 bg-white/90 rounded-xl border border-purple-200 text-xs text-purple-900 leading-relaxed">
+                        <i class="fas fa-info-circle text-purple-600 mr-1"></i>
+                        <strong>คำแนะนำ:</strong> เมื่อท่านแก้ไขวันที่ ระบบจะปรับปรุงรายการรับเข้านี้ไปจัดลงใน <strong>สมุดบัญชีวัสดุ (Stock Card)</strong> ตามปีงบประมาณของวันที่ระบุให้อัตโนมัติ โดยไม่ต้องลบรายการวัสดุเพื่อสร้างใหม่
+                    </div>
                 </div>
             </div>
         </div>

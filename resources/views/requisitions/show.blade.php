@@ -360,6 +360,14 @@
                             </div>
 
                             <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                                    <i class="fas fa-calendar-alt text-emerald-600 mr-1"></i> วันที่ตัดจ่ายพัสดุออกจากคลัง (ระบุเพื่อลงข้อมูลย้อนหลัง)
+                                </label>
+                                <input type="date" name="transaction_date" value="{{ $requisition->created_at ? $requisition->created_at->format('Y-m-d') : date('Y-m-d') }}" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm font-semibold outline-none">
+                                <p class="text-[11px] text-gray-400 mt-1">💡 โดยค่าเริ่มต้นจะตรงกับวันที่ของใบเบิกพัสดุ ({{ $requisition->created_at ? $requisition->created_at->format('d/m/Y') : '-' }})</p>
+                            </div>
+
+                            <div>
                                 <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">คำสั่ง / หมายเหตุหัวหน้าพัสดุ</label>
                                 <textarea name="admin_note" x-model="adminNote" rows="3" placeholder="ระบุคำสั่งหรือหมายเหตุอนุมัติสั่งจ่าย..." class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm font-medium outline-none resize-none"></textarea>
                             </div>

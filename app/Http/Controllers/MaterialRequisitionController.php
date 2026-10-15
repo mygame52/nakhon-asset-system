@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\Department;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +65,7 @@ class MaterialRequisitionController extends Controller
     {
         $validated = $request->validate([
             'reason_for_request' => 'required|string|max:1000',
+            'requisition_date' => 'nullable|date',
             'items' => 'required|array|min:1|max:10',
             'items.*.material_id' => 'required|exists:materials,id',
             'items.*.requested_qty' => 'required|integer|min:1',
@@ -80,18 +82,27 @@ class MaterialRequisitionController extends Controller
             return back()->with('error', 'พบรายการวัสดุซ้ำกันในใบเบิกเดียว กรุณารวมเป็นรายการเดียว');
         }
 
-        // Generate Code: จ.XXX/YYYY (e.g. จ.001/2569)
-        $yearBE = date('Y') + 543;
-        $countThisYear = Requisition::whereYear('created_at', date('Y'))->count() + 1;
-        $reqCode = 'จ.' . sprintf('%03d', $countThisYear) . '/' . $yearBE;
+        // Determine Requisition Date (Backdated Support)
+        $reqDate = !empty($validated['requisition_date']) ? Carbon::parse($validated['requisition_date']) : now();
 
-        DB::transaction(function () use ($validated, $user, $reqCode) {
+        // Generate Collision-Free Code: จ.XXX/YYYY (e.g. จ.001/2569)
+        $yearBE = $reqDate->year + 543;
+        $seq = Requisition::where('requisition_code', 'LIKE', "%/{$yearBE}")->count() + 1;
+        $reqCode = 'จ.' . sprintf('%03d', $seq) . '/' . $yearBE;
+        while (Requisition::where('requisition_code', $reqCode)->exists()) {
+            $seq++;
+            $reqCode = 'จ.' . sprintf('%03d', $seq) . '/' . $yearBE;
+        }
+
+        DB::transaction(function () use ($validated, $user, $reqCode, $reqDate) {
             $requisition = Requisition::create([
                 'requisition_code' => $reqCode,
                 'user_id' => $user->id,
                 'department_id' => $user->department_id,
                 'status' => 'pending',
                 'reason_for_request' => $validated['reason_for_request'],
+                'created_at' => $reqDate,
+                'updated_at' => $reqDate,
             ]);
 
             foreach ($validated['items'] as $itemData) {
@@ -100,6 +111,8 @@ class MaterialRequisitionController extends Controller
                     'material_id' => $itemData['material_id'],
                     'requested_qty' => $itemData['requested_qty'],
                     'status' => 'pending',
+                    'created_at' => $reqDate,
+                    'updated_at' => $reqDate,
                 ]);
             }
 
@@ -215,6 +228,7 @@ class MaterialRequisitionController extends Controller
         $validated = $request->validate([
             'approved_qty' => 'required|integer|min:1',
             'admin_note' => 'nullable|string|max:1000',
+            'transaction_date' => 'nullable|date',
         ]);
 
         $material = $item->material;
@@ -224,12 +238,16 @@ class MaterialRequisitionController extends Controller
         }
 
         DB::transaction(function () use ($item, $material, $validated) {
+            $txDate = !empty($validated['transaction_date']) 
+                ? $validated['transaction_date'] 
+                : ($item->requisition->created_at ? $item->requisition->created_at->toDateString() : now()->toDateString());
+
             $item->update([
                 'approved_qty' => $validated['approved_qty'],
                 'status' => 'approved',
                 'admin_note' => $validated['admin_note'] ?? null,
                 'approved_by' => Auth::id(),
-                'approved_at' => now(),
+                'approved_at' => Carbon::parse($txDate)->endOfDay(),
             ]);
 
             // Deduct Stock
@@ -243,9 +261,10 @@ class MaterialRequisitionController extends Controller
                 'item_id' => $material->id,
                 'quantity' => $validated['approved_qty'],
                 'user_id' => $item->requisition->user_id,
+                'party_name' => $item->requisition->department ? $item->requisition->department->name : ($item->requisition->user ? $item->requisition->user->name : 'ผู้เบิก'),
                 'reference_doc' => $item->requisition->requisition_code,
                 'note' => 'เบิกตามคำขอ ' . $item->requisition->requisition_code . ' (รายการ: ' . $material->name . ')' . ($validated['admin_note'] ? ' - ' . $validated['admin_note'] : ''),
-                'transaction_date' => now()->toDateString(),
+                'transaction_date' => $txDate,
                 'status' => 'completed',
             ]);
 

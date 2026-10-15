@@ -195,56 +195,142 @@
                 </div>
             </div>
 
-            <div class="mt-6 p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-4" x-data="{ openingChoice: 'default', customOpeningDate: '' }">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <label class="block text-sm font-extrabold text-emerald-900 uppercase tracking-wider">
-                            ยอดคงเหลือยกมาเริ่มต้น (Opening Balance) <span class="text-red-500">*</span>
+            <div class="mt-6 p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-5" x-data="{ 
+                stockMode: 'opening', 
+                openingChoice: 'default', 
+                customOpeningDate: '',
+                receiptDate: '{{ date('Y-m-d') }}',
+                receiptParty: '',
+                receiptDoc: ''
+            }">
+                <div>
+                    <label class="block text-sm font-extrabold text-emerald-900 uppercase tracking-wider mb-2">
+                        รูปแบบการตั้งต้นสต็อกวัสดุ <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="flex items-center p-3.5 bg-white border rounded-xl cursor-pointer transition-all" :class="stockMode === 'opening' ? 'border-emerald-500 ring-2 ring-emerald-400/40 shadow-sm' : 'border-emerald-200 hover:bg-emerald-50/50'">
+                            <input type="radio" name="initial_stock_type" value="opening_balance" x-model="stockMode" class="text-emerald-600 focus:ring-emerald-500 mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-emerald-900">1. ยอดยกมาจากปีก่อนหน้า</div>
+                                <div class="text-[11px] text-gray-500">ตั้งต้น ณ วันที่ 1 ต.ค. (แถวที่ 1)</div>
+                            </div>
                         </label>
-                        <p class="text-xs text-emerald-700 mt-1 font-medium">
-                            ระบุยอดคงเหลือยกมาจากปีก่อนหน้าตามระเบียบพัสดุ (ระบบจะตั้งต้นเป็นวันที่ 1 ต.ค. ให้อัตโนมัติ)
-                        </p>
-                    </div>
-                    <div class="w-full md:w-48">
-                        <input type="number" name="stock_qty" value="{{ old('stock_qty', 0) }}" min="0" required class="w-full px-4 py-3 bg-white border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xl font-extrabold text-center text-emerald-900 outline-none shadow-sm">
+                        <label class="flex items-center p-3.5 bg-white border rounded-xl cursor-pointer transition-all" :class="stockMode === 'first_receipt' ? 'border-emerald-500 ring-2 ring-emerald-400/40 shadow-sm' : 'border-emerald-200 hover:bg-emerald-50/50'">
+                            <input type="radio" name="initial_stock_type" value="first_receipt" x-model="stockMode" class="text-emerald-600 focus:ring-emerald-500 mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-emerald-900">2. รับเข้าพัสดุครั้งแรก</div>
+                                <div class="text-[11px] text-gray-500">ระบุวันที่รับจริง (เช่น 14 ต.ค. 68)</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3.5 bg-white border rounded-xl cursor-pointer transition-all" :class="stockMode === 'none' ? 'border-emerald-500 ring-2 ring-emerald-400/40 shadow-sm' : 'border-emerald-200 hover:bg-emerald-50/50'">
+                            <input type="radio" name="initial_stock_type" value="none" x-model="stockMode" @change="specs = specs" class="text-emerald-600 focus:ring-emerald-500 mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-emerald-900">3. ยังไม่มีสต็อก (0 ชิ้น)</div>
+                                <div class="text-[11px] text-gray-500">รอทำรายการรับเข้าในภายหลัง</div>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
-                <!-- Fiscal Year of Opening Balance Selection -->
-                <div class="pt-4 border-t border-emerald-200/60 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                        <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
-                            <i class="fas fa-calendar-alt mr-1 text-emerald-600"></i> ปีงบประมาณที่เริ่มต้นยอดยกมา
-                        </label>
-                        <select x-model="openingChoice" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
-                            <option value="default">ปีงบประมาณ 2570 (ยอดยกมา ณ 1 ต.ค. 2569 - ปีปัจจุบัน)</option>
-                            <option value="2569">ปีงบประมาณ 2569 (ยอดยกมา ณ 1 ต.ค. 2568 - ย้อนหลัง 1 ปี)</option>
-                            <option value="2568">ปีงบประมาณ 2568 (ยอดยกมา ณ 1 ต.ค. 2567 - ย้อนหลัง 2 ปี)</option>
-                            <option value="2567">ปีงบประมาณ 2567 (ยอดยกมา ณ 1 ต.ค. 2566 - ย้อนหลัง 3 ปี)</option>
-                            <option value="custom">กำหนดวันที่ยอดยกมาเอง...</option>
-                        </select>
+                <!-- Mode 1: Opening Balance on 1 Oct -->
+                <div x-show="stockMode === 'opening'" class="space-y-4 pt-3 border-t border-emerald-200/60">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <label class="block text-xs font-extrabold text-emerald-900 uppercase tracking-wider">
+                                จำนวนยอดคงเหลือยกมาเริ่มต้น <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-xs text-emerald-700 mt-1 font-medium">
+                                ระบุยอดคงเหลือยกมาจากปีก่อนหน้าตามระเบียบพัสดุ (ระบบจะนำยอดนี้ไปแสดงที่แถวที่ 1 ณ วันที่ 1 ต.ค.)
+                            </p>
+                        </div>
+                        <div class="w-full md:w-48">
+                            <input type="number" name="stock_qty" value="{{ old('stock_qty', 0) }}" min="0" class="w-full px-4 py-3 bg-white border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xl font-extrabold text-center text-emerald-900 outline-none shadow-sm">
+                        </div>
                     </div>
 
-                    <!-- Hidden/Calculated or Custom Date Input -->
-                    <div>
-                        <template x-if="openingChoice === 'custom'">
-                            <div>
-                                <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
-                                    ระบุวันที่ยอดยกมาเอง
-                                </label>
-                                <input type="date" name="opening_balance_date" x-model="customOpeningDate" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none">
-                            </div>
-                        </template>
-                        <template x-if="openingChoice !== 'custom'">
-                            <input type="hidden" name="opening_balance_date" :value="
-                                openingChoice === '2569' ? '2025-09-30' :
-                                openingChoice === '2568' ? '2024-09-30' :
-                                openingChoice === '2567' ? '2023-09-30' : '2026-09-30'
-                            ">
-                        </template>
-                        <p class="text-[11px] text-emerald-700 mt-1 italic" x-show="openingChoice !== 'custom'">
-                            * ระบบจะนำยอดนี้ไปแสดงที่แถวที่ 1 (ยอดยกมาจากปีงบประมาณก่อนหน้า) โดยอัตโนมัติ
-                        </p>
+                    <div class="pt-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                <i class="fas fa-calendar-alt mr-1 text-emerald-600"></i> ปีงบประมาณที่เริ่มต้นยอดยกมา
+                            </label>
+                            <select x-model="openingChoice" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                                <option value="default">ปีงบประมาณ 2570 (ยอดยกมา ณ 1 ต.ค. 2569 - ปีปัจจุบัน)</option>
+                                <option value="2569">ปีงบประมาณ 2569 (ยอดยกมา ณ 1 ต.ค. 2568 - ย้อนหลัง 1 ปี)</option>
+                                <option value="2568">ปีงบประมาณ 2568 (ยอดยกมา ณ 1 ต.ค. 2567 - ย้อนหลัง 2 ปี)</option>
+                                <option value="2567">ปีงบประมาณ 2567 (ยอดยกมา ณ 1 ต.ค. 2566 - ย้อนหลัง 3 ปี)</option>
+                                <option value="custom">กำหนดวันที่ยอดยกมาเอง...</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <template x-if="openingChoice === 'custom'">
+                                <div>
+                                    <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                        ระบุวันที่ยอดยกมาเอง
+                                    </label>
+                                    <input type="date" name="opening_balance_date" x-model="customOpeningDate" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none">
+                                </div>
+                            </template>
+                            <template x-if="openingChoice !== 'custom'">
+                                <input type="hidden" name="opening_balance_date" :value="
+                                    openingChoice === '2569' ? '2025-09-30' :
+                                    openingChoice === '2568' ? '2024-09-30' :
+                                    openingChoice === '2567' ? '2023-09-30' : '2026-09-30'
+                                ">
+                            </template>
+                            <p class="text-[11px] text-emerald-700 mt-1 italic" x-show="openingChoice !== 'custom'">
+                                * ระบบจะนำยอดนี้ไปแสดงที่แถวที่ 1 (ยอดยกมาจากปีงบประมาณก่อนหน้า) โดยอัตโนมัติ
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mode 2: First Stock Receipt (e.g. 14 Oct 2568) -->
+                <div x-show="stockMode === 'first_receipt'" class="space-y-4 pt-3 border-t border-emerald-200/60" style="display: none;">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <label class="block text-xs font-extrabold text-emerald-900 uppercase tracking-wider">
+                                จำนวนที่รับเข้าครั้งแรก <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-xs text-emerald-700 mt-1 font-medium">
+                                ระบุจำนวนพัสดุที่รับเข้าจริงตามใบส่งของ/จัดซื้อ (จะแสดงเป็นแถวรับเข้าในสมุดบัญชีวัสดุ)
+                            </p>
+                        </div>
+                        <div class="w-full md:w-48">
+                            <input type="number" name="receipt_qty" value="{{ old('receipt_qty', 1) }}" min="1" class="w-full px-4 py-3 bg-white border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xl font-extrabold text-center text-emerald-900 outline-none shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                <i class="fas fa-calendar-alt mr-1 text-emerald-600"></i> วันที่รับเข้าจริง <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" name="receipt_date" x-model="receiptDate" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                            <p class="text-[11px] text-emerald-700 mt-1">เช่น 14 ต.ค. 2568 (2025-10-14)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ)
+                            </label>
+                            <input type="text" name="receipt_party_name" x-model="receiptParty" placeholder="เช่น ร้านค้า หรือ จัดซื้อตามสัญญา" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-medium text-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                                เลขที่เอกสาร (PO / ใบส่งของ)
+                            </label>
+                            <input type="text" name="receipt_ref_doc" x-model="receiptDoc" placeholder="เช่น PO-68001 หรือ ใบส่งของ" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-medium text-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                        </div>
+                    </div>
+                    <div class="p-3 bg-white/80 rounded-xl border border-emerald-200 text-xs text-emerald-800">
+                        💡 <strong>การแสดงผลในสมุดบัญชีวัสดุ:</strong> ในปีงบประมาณที่รับเข้า แถวที่ 1 จะแสดงยอดยกมาเป็น 0 และแถวที่ 2 จะแสดงเป็นรายการรับเข้า ณ วันที่ระบุ หากไม่มีการเบิกจ่าย ยอดจะถูกยกไปเป็นยอดยกมาของปีงบประมาณถัดไปโดยอัตโนมัติ
+                    </div>
+                </div>
+
+                <!-- Mode 3: Zero Stock -->
+                <div x-show="stockMode === 'none'" class="pt-3 border-t border-emerald-200/60" style="display: none;">
+                    <div class="p-3 bg-white/80 rounded-xl border border-emerald-200 text-xs text-gray-700">
+                        📦 <strong>ยังไม่มีสต็อกเริ่มต้น:</strong> รายการวัสดุนี้จะเริ่มด้วยยอดคงเหลือ <strong>0</strong> ชิ้น คุณสามารถกดปุ่ม "บันทึกรับวัสดุเข้า" ได้ตลอดเวลาในหน้าสมุดบัญชีวัสดุ
                     </div>
                 </div>
             </div>

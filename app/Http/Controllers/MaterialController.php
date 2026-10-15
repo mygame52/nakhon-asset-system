@@ -63,7 +63,12 @@ class MaterialController extends Controller
             'specs' => 'nullable|string|max:1000',
             'unit' => 'required|string|max:100',
             'category_id' => 'nullable|exists:categories,id',
-            'stock_qty' => 'required|integer|min:0',
+            'stock_qty' => 'nullable|integer|min:0',
+            'receipt_qty' => 'nullable|integer|min:1',
+            'initial_stock_type' => 'nullable|in:opening_balance,first_receipt,none',
+            'receipt_date' => 'nullable|date',
+            'receipt_party_name' => 'nullable|string|max:255',
+            'receipt_ref_doc' => 'nullable|string|max:255',
             'unit_price' => 'nullable|numeric|min:0',
             'location_name' => 'nullable|string|max:255',
             'min_stock' => 'nullable|integer|min:0',
@@ -73,7 +78,6 @@ class MaterialController extends Controller
             'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น หรือเว้นว่างไว้เพื่อให้ระบบสร้างรหัสใหม่อัตโนมัติ',
             'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
             'unit.required' => 'กรุณาระบุหน่วยนับ',
-            'stock_qty.required' => 'กรุณาระบุจำนวนยกมาเริ่มต้น',
         ]);
 
         if (empty($validated['location_name'])) {
@@ -82,8 +86,17 @@ class MaterialController extends Controller
         $validated['min_stock'] = $validated['min_stock'] ?? 0;
         $validated['max_stock'] = $validated['max_stock'] ?? 0;
 
+        $stockType = $request->input('initial_stock_type', 'opening_balance');
+        if ($stockType === 'first_receipt') {
+            $validated['stock_qty'] = intval($request->input('receipt_qty', 1));
+        } elseif ($stockType === 'none') {
+            $validated['stock_qty'] = 0;
+        } else {
+            $validated['stock_qty'] = intval($request->input('stock_qty', 0));
+        }
+
         try {
-            DB::transaction(function () use ($validated, &$material) {
+            DB::transaction(function () use ($validated, $stockType, $request, &$material) {
                 // Auto generate material code if empty (guaranteed collision-free)
                 if (empty($validated['material_code'])) {
                     $category = !empty($validated['category_id']) ? Category::find($validated['category_id']) : null;
@@ -107,38 +120,58 @@ class MaterialController extends Controller
                     }
                 }
 
-                // Determine Opening Balance Date (Default: 30 Sep of previous fiscal year so it rolls over into 1 Oct)
-                $openingDate = $validated['opening_balance_date'] ?? null;
-                if (empty($openingDate)) {
-                    $now = now();
-                    $currentFyAD = $now->month >= 10 ? $now->year + 1 : $now->year;
-                    $openingDate = Carbon::createFromDate($currentFyAD - 1, 9, 30)->toDateString();
-                } else {
-                    $parsed = Carbon::parse($openingDate);
-                    if ($parsed->month == 10 && $parsed->day == 1) {
-                        $openingDate = $parsed->copy()->subDay()->toDateString();
-                    } else {
-                        $openingDate = $parsed->toDateString();
-                    }
-                }
-
                 $material = Material::create($validated);
 
-                // Record Initial Balance Transaction if stock_qty > 0
+                // Record Initial Transaction if stock_qty > 0
                 if ($material->stock_qty > 0) {
-                    Transaction::create([
-                        'transaction_type' => 'in',
-                        'item_type' => 'material',
-                        'item_id' => $material->id,
-                        'quantity' => $material->stock_qty,
-                        'unit_price' => $material->unit_price,
-                        'user_id' => Auth::id(),
-                        'party_name' => 'ยอดยกมาเริ่มต้น',
-                        'reference_doc' => 'ยอดยกมา',
-                        'note' => 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ',
-                        'transaction_date' => $openingDate,
-                        'status' => 'completed',
-                    ]);
+                    if ($stockType === 'first_receipt') {
+                        $receiptDate = $request->input('receipt_date', now()->toDateString());
+                        $partyName = trim($request->input('receipt_party_name', ''));
+                        $refDoc = trim($request->input('receipt_ref_doc', ''));
+
+                        Transaction::create([
+                            'transaction_type' => 'in',
+                            'item_type' => 'material',
+                            'item_id' => $material->id,
+                            'quantity' => $material->stock_qty,
+                            'unit_price' => $material->unit_price,
+                            'user_id' => Auth::id(),
+                            'party_name' => !empty($partyName) ? $partyName : 'รับเข้าพัสดุครั้งแรก',
+                            'reference_doc' => !empty($refDoc) ? $refDoc : 'รับเข้าสต็อก',
+                            'note' => 'รับเข้าพัสดุครั้งแรก',
+                            'transaction_date' => $receiptDate,
+                            'status' => 'completed',
+                        ]);
+                    } else {
+                        // Opening Balance (rolls over to 1 Oct of selected FY)
+                        $openingDate = $validated['opening_balance_date'] ?? null;
+                        if (empty($openingDate)) {
+                            $now = now();
+                            $currentFyAD = $now->month >= 10 ? $now->year + 1 : $now->year;
+                            $openingDate = Carbon::createFromDate($currentFyAD - 1, 9, 30)->toDateString();
+                        } else {
+                            $parsed = Carbon::parse($openingDate);
+                            if ($parsed->month == 10 && $parsed->day == 1) {
+                                $openingDate = $parsed->copy()->subDay()->toDateString();
+                            } else {
+                                $openingDate = $parsed->toDateString();
+                            }
+                        }
+
+                        Transaction::create([
+                            'transaction_type' => 'in',
+                            'item_type' => 'material',
+                            'item_id' => $material->id,
+                            'quantity' => $material->stock_qty,
+                            'unit_price' => $material->unit_price,
+                            'user_id' => Auth::id(),
+                            'party_name' => 'ยอดยกมาเริ่มต้น',
+                            'reference_doc' => 'ยอดยกมา',
+                            'note' => 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ',
+                            'transaction_date' => $openingDate,
+                            'status' => 'completed',
+                        ]);
+                    }
                 }
             });
         } catch (UniqueConstraintViolationException $e) {

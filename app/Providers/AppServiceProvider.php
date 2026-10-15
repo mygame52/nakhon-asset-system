@@ -19,6 +19,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($appUrl = env('APP_URL')) {
+            \Illuminate\Support\Facades\URL::forceRootUrl($appUrl);
+        }
+        if (str_starts_with(env('APP_URL', ''), 'https://')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
+
         // Implicitly grant "Super Admin" role all permissions
         \Illuminate\Support\Facades\Gate::before(function ($user, $ability) {
             return $user->hasRole('Super Admin') ? true : null;

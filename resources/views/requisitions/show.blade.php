@@ -26,14 +26,20 @@
         $thMonths = [
             1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
             5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
-            9 => 'กันยายน', 10 => 'ตลุาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+            9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
         ];
         $reqDate = \Carbon\Carbon::parse($requisition->created_at);
         $reqDay = $reqDate->format('j');
         $reqMonth = $thMonths[$reqDate->month] ?? '';
         $reqYear = $reqDate->year + 543;
 
-        $approvedAt = $requisition->approved_at;
+        // Find latest officer approver and head approver
+        $officerItem = $requisition->items->whereNotNull('officer_approved_by')->first();
+        $headItem = $requisition->items->whereNotNull('approved_by')->first();
+        $officerUser = $officerItem ? $officerItem->officerApprover : null;
+        $headUser = $headItem ? $headItem->approver : null;
+
+        $approvedAt = $headItem ? $headItem->approved_at : null;
         $appDay = '';
         $appMonth = '';
         $appYear = '';
@@ -43,12 +49,7 @@
             $appMonth = $thMonths[$appDate->month] ?? '';
             $appYear = $appDate->year + 543;
         }
-
-        // Find latest officer approver and head approver
-        $officerItem = $requisition->items->whereNotNull('officer_approved_by')->first();
-        $headItem = $requisition->items->whereNotNull('approved_by')->first();
-        $officerUser = $officerItem ? $officerItem->officerApprover : null;
-        $headUser = $headItem ? $headItem->approver : null;
+        $requesterSignature = $requisition->requester_signature;
     @endphp
 
     <!-- Workflow Status Banner -->
@@ -246,8 +247,8 @@
                     <div class="flex flex-col items-center w-72 text-center leading-tight">
                         <div>
                             (ลงชื่อ) <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="font-bold border-b border-dotted border-gray-400">
-                                @if($requisition->user && $requisition->user->signature)
-                                    <img src="{{ asset('storage/' . $requisition->user->signature) }}" style="position: absolute; bottom: 2px; height: 42px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
+                                @if($requesterSignature)
+                                    <img src="{{ asset('storage/' . $requesterSignature) }}" style="position: absolute; bottom: 2px; height: 42px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
                                 @endif
                                 &nbsp;
                             </span> ผู้เบิก
@@ -264,8 +265,8 @@
                     <div class="mt-2 flex flex-col items-center w-72 text-center leading-tight">
                         <div>
                             (ลงชื่อ) <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="font-bold border-b border-dotted border-gray-400">
-                                @if($requisition->user && $requisition->user->signature && in_array($requisition->status, ['approved', 'partial']))
-                                    <img src="{{ asset('storage/' . $requisition->user->signature) }}" style="position: absolute; bottom: 2px; height: 42px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
+                                @if($requesterSignature && in_array($requisition->status, ['approved', 'partial']))
+                                    <img src="{{ asset('storage/' . $requesterSignature) }}" style="position: absolute; bottom: 2px; height: 42px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
                                 @endif
                                 &nbsp;
                             </span> ผู้รับของ

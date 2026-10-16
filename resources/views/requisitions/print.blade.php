@@ -13,7 +13,7 @@
         $thMonths = [
             1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
             5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
-            9 => 'กันยายน', 10 => 'ตลุาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+            9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
         ];
         $reqDate = \Carbon\Carbon::parse($requisition->created_at);
         $reqDay = $reqDate->format('j');
@@ -35,6 +35,7 @@
             $appMonth = $thMonths[$appDate->month] ?? '';
             $appYear = $appDate->year + 543;
         }
+        $requesterSignature = $requisition->requester_signature;
     @endphp
 
     <div class="no-print-bar">
@@ -147,8 +148,8 @@
                     <div style="display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
                         <div>
                             (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="dots">
-                                @if($requisition->user && $requisition->user->signature)
-                                    <img src="{{ asset('storage/' . $requisition->user->signature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
+                                @if($requesterSignature)
+                                    <img src="{{ asset('storage/' . $requesterSignature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
                                 @endif
                                 &nbsp;
                             </span>ผู้เบิก
@@ -165,8 +166,8 @@
                     <div style="margin-top: 8px; display: inline-flex; flex-direction: column; align-items: center; width: 280px; text-align: center; line-height: 1.3;">
                         <div>
                             (ลงชื่อ)<span style="position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 180px; vertical-align: bottom;" class="dots">
-                                @if($requisition->user && $requisition->user->signature && in_array($requisition->status, ['approved', 'partial']))
-                                    <img src="{{ asset('storage/' . $requisition->user->signature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
+                                @if($requesterSignature && in_array($requisition->status, ['approved', 'partial']))
+                                    <img src="{{ asset('storage/' . $requesterSignature) }}" style="position: absolute; bottom: 2px; height: 52px; max-width: 160px; object-fit: contain; pointer-events: none;" alt="Signature">
                                 @endif
                                 &nbsp;
                             </span>ผู้รับของ

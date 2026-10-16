@@ -14,7 +14,16 @@ class NotificationController extends Controller
         $notification->update(['is_read' => true]);
 
         if ($notification->link) {
-            return redirect($notification->link);
+            $path = parse_url($notification->link, PHP_URL_PATH) ?? '';
+            $query = parse_url($notification->link, PHP_URL_QUERY);
+            $basePath = rtrim((string) parse_url((string) config('app.url', ''), PHP_URL_PATH), '/');
+
+            if ($basePath !== '' && $basePath !== '/' && str_starts_with($path, $basePath . '/')) {
+                $path = substr($path, strlen($basePath));
+            }
+
+            $target = url(ltrim($path, '/')) . ($query ? '?' . $query : '');
+            return redirect($target);
         }
 
         return back();

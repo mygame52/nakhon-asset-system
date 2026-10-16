@@ -296,7 +296,7 @@ class MaterialRequisitionController extends Controller
             abort(403, 'คุณไม่มีสิทธิ์เข้าดูใบเบิกรายการนี้');
         }
 
-        $requisition->load(['user', 'department', 'items.material', 'items.approver']);
+        $requisition->load(['user', 'department', 'items.material', 'items.approver', 'items.officerApprover']);
 
         return view('requisitions.show', compact('requisition'));
     }
@@ -529,7 +529,7 @@ class MaterialRequisitionController extends Controller
             abort(403);
         }
 
-        $requisition->load(['user', 'department', 'items.material', 'items.approver']);
+        $requisition->load(['user', 'department', 'items.material', 'items.approver', 'items.officerApprover']);
 
         return view('requisitions.print', compact('requisition'));
     }
@@ -547,6 +547,7 @@ class MaterialRequisitionController extends Controller
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sq) use ($search) {
                     $sq->where('requisition_code', 'like', "%{$search}%")
+                      ->orWhere('requester_name', 'like', "%{$search}%")
                       ->orWhereHas('user', function ($uq) use ($search) {
                           $uq->where('name', 'like', "%{$search}%");
                       })
@@ -600,14 +601,16 @@ class MaterialRequisitionController extends Controller
             ]);
 
             $statusMap = [
-                'pending' => 'รออนุมัติ',
+                'pending' => 'รอเจ้าหน้าที่พัสดุอนุมัติ',
+                'officer_approved' => 'รอหัวหน้าพัสดุอนุมัติ',
                 'partial' => 'อนุมัติบางส่วน',
                 'approved' => 'อนุมัติแล้ว',
                 'rejected' => 'ปฏิเสธ',
             ];
 
             $itemStatusMap = [
-                'pending' => 'รออนุมัติ',
+                'pending' => 'รอเจ้าหน้าที่พัสดุอนุมัติ',
+                'officer_approved' => 'รอหัวหน้าพัสดุอนุมัติ',
                 'approved' => 'อนุมัติแล้ว',
                 'rejected' => 'ปฏิเสธ',
             ];
@@ -617,7 +620,7 @@ class MaterialRequisitionController extends Controller
                     fputcsv($file, [
                         $req->requisition_code,
                         $req->created_at->format('d/m/Y H:i'),
-                        $req->user->name ?? '-',
+                        $req->requester_display_name,
                         $req->department->name ?? '-',
                         $item->material->name ?? '-',
                         $item->requested_qty,
@@ -625,7 +628,7 @@ class MaterialRequisitionController extends Controller
                         $item->material->unit ?? '-',
                         $itemStatusMap[$item->status] ?? $item->status,
                         $statusMap[$req->status] ?? $req->status,
-                        $item->admin_note ?? '-',
+                        $item->admin_note ?? $item->officer_note ?? '-',
                     ]);
                 }
             }

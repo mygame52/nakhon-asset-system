@@ -22,6 +22,17 @@ class Requisition extends Model
         return !empty($this->requester_name) ? $this->requester_name : ($this->user ? $this->user->name : '-');
     }
 
+    public function getRequesterSignatureAttribute(): ?string
+    {
+        if (empty($this->requester_name)) {
+            return $this->user?->signature;
+        }
+        if ($this->user && trim($this->user->name) === trim($this->requester_name)) {
+            return $this->user->signature;
+        }
+        return User::where('name', trim($this->requester_name))->value('signature');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

@@ -27,7 +27,7 @@ class LoginController extends Controller
                 $user->assignRole('user');
             }
             \App\Models\ActivityLog::log('login', 'auth', "ผู้ใช้งาน {$user->name} ({$user->username}) เข้าสู่ระบบสำเร็จ", $user);
-            return redirect()->intended('dashboard');
+            return redirect()->intended(route('dashboard'));
         }
 
         return back()->withErrors([
@@ -44,6 +44,6 @@ class LoginController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect('/');
+        return redirect()->route('login');
     }
 }

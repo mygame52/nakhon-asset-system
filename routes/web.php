@@ -31,7 +31,7 @@ Route::middleware(['auth'])->group(function () {
     // Admin Only System Routes
     Route::middleware(['role:admin'])->group(function () {
         Route::delete('assets/bulk-delete', [AssetController::class, 'bulkDelete'])->name('assets.bulk-delete');
-        Route::resource('users', \App\Http\Controllers\UserController::class);
+        Route::resource('users', \App\Http\Controllers\UserController::class)->except(['show']);
     });
 
     // Admin & Procurement Officer Action Routes
@@ -65,10 +65,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('assets', AssetController::class)->except(['index', 'show']);
         Route::resource('materials', MaterialController::class)->except(['index', 'show']);
-        Route::resource('categories', CategoryController::class)->except(['index']);
-        Route::resource('locations', LocationController::class)->except(['index']);
-        Route::resource('departments', DepartmentController::class)->except(['index']);
-        Route::resource('vendors', VendorController::class)->except(['index']);
+        Route::resource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
+        Route::resource('locations', LocationController::class)->only(['store', 'update', 'destroy']);
+        Route::resource('departments', DepartmentController::class)->only(['store', 'update', 'destroy']);
+        Route::resource('vendors', VendorController::class)->only(['store', 'update', 'destroy']);
     });
 
     // Shared Read & Action Routes for All Roles (admin, procurement, user)
@@ -101,4 +101,16 @@ Route::middleware(['auth'])->group(function () {
         
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
     });
+
+    // Fallback route for serving public storage files (signatures, asset images) when symlink is missing on IIS
+    Route::get('storage/{path}', function (string $path) {
+        if (str_contains($path, '..')) {
+            abort(404);
+        }
+        $fullPath = storage_path('app/public/' . ltrim($path, '/\\'));
+        if (!file_exists($fullPath) || !is_file($fullPath)) {
+            abort(404);
+        }
+        return response()->file($fullPath);
+    })->where('path', '.*');
 });

@@ -301,6 +301,320 @@ class MaterialRequisitionController extends Controller
         return view('requisitions.show', compact('requisition'));
     }
 
+    public function edit(Requisition $requisition)
+    {
+        $user = Auth::user();
+        $isStaff = $user->hasAnyRole(['admin', 'procurement']);
+
+        if (!$isStaff) {
+            if ($requisition->user_id !== $user->id) {
+                abort(403, 'คุณไม่มีสิทธิ์แก้ไขใบเบิกรายการนี้');
+            }
+            if ($requisition->status !== 'pending' || $requisition->items()->where('status', '!=', 'pending')->exists()) {
+                return redirect()->route('requisitions.show', $requisition->id)
+                    ->with('error', 'ไม่สามารถแก้ไขใบเบิกที่ผ่านการพิจารณาแล้วได้ (กรุณาติดต่อเจ้าหน้าที่พัสดุ)');
+            }
+        }
+
+        $requisition->load(['user', 'department', 'items.material']);
+        $materials = Material::orderBy('name', 'asc')->get();
+        $departments = Department::orderBy('name', 'asc')->get();
+
+        $pastRequesters = Requisition::whereNotNull('requester_name')
+            ->where('requester_name', '!=', '')
+            ->distinct()
+            ->pluck('requester_name')
+            ->merge(User::pluck('name'))
+            ->unique()
+            ->filter()
+            ->values();
+
+        return view('requisitions.edit', compact('requisition', 'materials', 'departments', 'pastRequesters', 'isStaff'));
+    }
+
+    public function update(Request $request, Requisition $requisition)
+    {
+        $user = Auth::user();
+        $isStaff = $user->hasAnyRole(['admin', 'procurement']);
+
+        if (!$isStaff) {
+            if ($requisition->user_id !== $user->id) {
+                abort(403, 'คุณไม่มีสิทธิ์แก้ไขใบเบิกรายการนี้');
+            }
+            if ($requisition->status !== 'pending' || $requisition->items()->where('status', '!=', 'pending')->exists()) {
+                return redirect()->route('requisitions.show', $requisition->id)
+                    ->with('error', 'ไม่สามารถแก้ไขใบเบิกที่ผ่านการพิจารณาแล้วได้');
+            }
+        }
+
+        $rules = [
+            'requisition_date' => 'required|date',
+            'reason_for_request' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1|max:20',
+            'items.*.material_id' => 'required|exists:materials,id',
+            'items.*.requested_qty' => 'required|integer|min:1',
+        ];
+
+        if ($isStaff) {
+            $rules['requisition_code'] = 'required|string|max:100|unique:requisitions,requisition_code,' . $requisition->id;
+            $rules['requester_name'] = 'required|string|max:255';
+            $rules['department_id'] = 'nullable|exists:departments,id';
+            $rules['items.*.approved_qty'] = 'nullable|integer|min:0';
+            $rules['items.*.status'] = 'nullable|in:pending,officer_approved,approved,rejected';
+            $rules['items.*.note'] = 'nullable|string|max:1000';
+        } else {
+            $rules['reason_for_request'] = 'required|string|max:1000';
+        }
+
+        $validated = $request->validate($rules, [
+            'requisition_code.required' => 'กรุณาระบุเลขที่ใบเบิก',
+            'requisition_code.unique' => 'เลขที่ใบเบิกนี้ซ้ำกับใบเบิกอื่นในระบบ กรุณาใช้เลขที่อื่น',
+            'requisition_date.required' => 'กรุณาระบุวันที่ใบเบิก',
+            'requester_name.required' => 'กรุณาระบุชื่อผู้ขอเบิก',
+            'items.min' => 'กรุณาเลือกรายการวัสดุอย่างน้อย 1 รายการ',
+            'items.*.material_id.required' => 'กรุณาเลือกวัสดุ',
+            'items.*.requested_qty.min' => 'จำนวนต้องมีค่าอย่างน้อย 1',
+        ]);
+
+        // Check duplicate materials in the same requisition
+        $materialIds = array_column($validated['items'], 'material_id');
+        if (count($materialIds) !== count(array_unique($materialIds))) {
+            return back()->withInput()->with('error', 'พบรายการวัสดุซ้ำกันในใบเบิกเดียว กรุณารวมเป็นรายการเดียว');
+        }
+
+        $requisition->load('items');
+
+        // Calculate stock already deducted by this requisition so we can validate available stock accurately
+        $previouslyDeductedByMaterial = [];
+        foreach ($requisition->items as $oldItem) {
+            if ($oldItem->status === 'approved' && $oldItem->approved_qty > 0) {
+                $previouslyDeductedByMaterial[$oldItem->material_id] = ($previouslyDeductedByMaterial[$oldItem->material_id] ?? 0) + (int) $oldItem->approved_qty;
+            }
+        }
+
+        foreach ($validated['items'] as $itemData) {
+            $itemStatus = $isStaff
+                ? ($itemData['status'] ?? ($requisition->status === 'approved' ? 'approved' : 'pending'))
+                : 'pending';
+
+            if ($itemStatus === 'approved') {
+                $reqQty = (int) $itemData['requested_qty'];
+                $appQty = (isset($itemData['approved_qty']) && $itemData['approved_qty'] !== '' && (int) $itemData['approved_qty'] > 0)
+                    ? (int) $itemData['approved_qty']
+                    : $reqQty;
+
+                $material = Material::find($itemData['material_id']);
+                $availableStock = ($material ? $material->stock_qty : 0) + ($previouslyDeductedByMaterial[$itemData['material_id']] ?? 0);
+
+                if (!$material || $appQty > $availableStock) {
+                    $unit = $material ? $material->unit : '';
+                    $name = $material ? $material->name : '';
+                    return back()->withInput()->with('error', "จำนวนวัสดุ '{$name}' ในสต็อกไม่เพียงพอสำหรับการอนุมัติจ่าย (สามารถเบิกได้สูงสุด: {$availableStock} {$unit})");
+                }
+            }
+        }
+
+        DB::transaction(function () use ($validated, $requisition, $user, $isStaff) {
+            $oldReqCode = $requisition->requisition_code;
+            $oldItemsByMaterial = $requisition->items->keyBy('material_id');
+
+            // 1. Restore stock for previously approved items
+            foreach ($requisition->items as $oldItem) {
+                if ($oldItem->status === 'approved' && $oldItem->approved_qty > 0) {
+                    $oldMat = Material::lockForUpdate()->find($oldItem->material_id);
+                    if ($oldMat) {
+                        $oldMat->stock_qty += (int) $oldItem->approved_qty;
+                        $oldMat->save();
+                    }
+                }
+            }
+
+            // 2. Soft-delete old outward Stock Card transactions for this requisition
+            Transaction::where('transaction_type', 'out')
+                ->where('item_type', 'material')
+                ->where('reference_doc', $oldReqCode)
+                ->update([
+                    'deleted_by' => $user->id,
+                    'delete_reason' => 'ปรับปรุงข้อมูลใบเบิก ' . $oldReqCode,
+                ]);
+            Transaction::where('transaction_type', 'out')
+                ->where('item_type', 'material')
+                ->where('reference_doc', $oldReqCode)
+                ->delete();
+
+            // 3. Update Requisition Header
+            $reqDate = Carbon::parse($validated['requisition_date']);
+            $newReqCode = $isStaff ? trim($validated['requisition_code']) : $requisition->requisition_code;
+            $requesterName = $isStaff ? trim($validated['requester_name']) : $requisition->requester_name;
+            $departmentId = $isStaff ? ($validated['department_id'] ?? null) : $requisition->department_id;
+            $reason = $validated['reason_for_request'] ?: 'การปฏิบัติงานตามภารกิจหน่วยงาน';
+
+            // If requesterName matches a registered User, optionally link user_id if staff edited it
+            $matchedUser = !empty($requesterName) ? User::where('name', $requesterName)->first() : null;
+
+            $requisition->requisition_code = $newReqCode;
+            if ($isStaff) {
+                $requisition->requester_name = $requesterName;
+                $requisition->department_id = $departmentId;
+                if ($matchedUser) {
+                    $requisition->user_id = $matchedUser->id;
+                }
+            }
+            $requisition->reason_for_request = $reason;
+            $requisition->created_at = $reqDate;
+            $requisition->updated_at = now();
+            $requisition->save();
+
+            // 4. Replace RequisitionItems & create updated outward Stock Card transactions
+            $requisition->items()->delete();
+
+            $department = $departmentId ? Department::find($departmentId) : null;
+            $deptName = $department ? $department->name : '';
+            $displayRequester = !empty($requesterName) ? $requesterName : ($requisition->user ? $requisition->user->name : 'ผู้เบิก');
+            $partyDisplay = $displayRequester . (!empty($deptName) ? " ({$deptName})" : '');
+
+            foreach ($validated['items'] as $itemData) {
+                $material = Material::lockForUpdate()->find($itemData['material_id']);
+                $reqQty = (int) $itemData['requested_qty'];
+                $itemStatus = $isStaff
+                    ? ($itemData['status'] ?? ($requisition->status === 'approved' ? 'approved' : 'pending'))
+                    : 'pending';
+
+                $appQty = null;
+                if (in_array($itemStatus, ['officer_approved', 'approved'], true)) {
+                    $appQty = (isset($itemData['approved_qty']) && $itemData['approved_qty'] !== '' && (int) $itemData['approved_qty'] > 0)
+                        ? (int) $itemData['approved_qty']
+                        : $reqQty;
+                } elseif ($itemStatus === 'rejected') {
+                    $appQty = 0;
+                }
+
+                $oldItem = $oldItemsByMaterial->get($material->id);
+                $note = $isStaff ? ($itemData['note'] ?? ($oldItem->admin_note ?? $oldItem->officer_note ?? null)) : null;
+
+                $approvedBy = null;
+                $approvedAt = null;
+                $officerApprovedBy = null;
+                $officerApprovedAt = null;
+
+                if ($itemStatus === 'approved') {
+                    $approvedBy = $oldItem?->approved_by ?? $user->id;
+                    $approvedAt = $reqDate;
+                    $officerApprovedBy = $oldItem?->officer_approved_by ?? $user->id;
+                    $officerApprovedAt = $reqDate;
+                } elseif ($itemStatus === 'officer_approved') {
+                    $officerApprovedBy = $oldItem?->officer_approved_by ?? $user->id;
+                    $officerApprovedAt = $oldItem?->officer_approved_at ?? now();
+                } elseif ($itemStatus === 'rejected') {
+                    $approvedBy = $oldItem?->approved_by ?? $user->id;
+                    $approvedAt = $oldItem?->approved_at ?? now();
+                }
+
+                RequisitionItem::create([
+                    'requisition_id' => $requisition->id,
+                    'material_id' => $material->id,
+                    'requested_qty' => $reqQty,
+                    'approved_qty' => $appQty,
+                    'status' => $itemStatus,
+                    'officer_approved_by' => $officerApprovedBy,
+                    'officer_approved_at' => $officerApprovedAt,
+                    'officer_note' => $note,
+                    'admin_note' => $note,
+                    'approved_by' => $approvedBy,
+                    'approved_at' => $approvedAt,
+                    'created_at' => $reqDate,
+                    'updated_at' => now(),
+                ]);
+
+                if ($itemStatus === 'approved' && $appQty > 0) {
+                    $material->stock_qty -= $appQty;
+                    $material->save();
+
+                    Transaction::create([
+                        'transaction_type' => 'out',
+                        'item_type' => 'material',
+                        'item_id' => $material->id,
+                        'quantity' => $appQty,
+                        'unit_price' => $material->unit_price,
+                        'user_id' => $requisition->user_id,
+                        'party_name' => $partyDisplay,
+                        'reference_doc' => $newReqCode,
+                        'note' => 'เบิกจ่ายตามใบเบิก ' . $newReqCode . (!empty($note) ? " ({$note})" : (!empty($reason) ? " ({$reason})" : '')),
+                        'transaction_date' => $reqDate->toDateString(),
+                        'created_at' => $reqDate,
+                        'status' => 'completed',
+                    ]);
+                }
+            }
+
+            $requisition->load('items');
+            $this->updateParentStatus($requisition);
+
+            \App\Models\ActivityLog::log(
+                'updated',
+                'requisition',
+                "แก้ไขใบเบิกวัสดุเลขที่ {$newReqCode} (ผู้ขอเบิก: {$displayRequester})",
+                $requisition
+            );
+        });
+
+        return redirect()->route('requisitions.show', $requisition->id)
+            ->with('success', 'บันทึกการแก้ไขใบเบิกวัสดุ และปรับปรุงยอดสต็อก/สมุดบัญชีวัสดุเรียบร้อยแล้ว');
+    }
+
+    public function destroy(Requisition $requisition)
+    {
+        $user = Auth::user();
+        $isStaff = $user->hasAnyRole(['admin', 'procurement']);
+
+        if (!$isStaff) {
+            if ($requisition->user_id !== $user->id || $requisition->status !== 'pending' || $requisition->items()->where('status', '!=', 'pending')->exists()) {
+                abort(403, 'คุณไม่มีสิทธิ์ลบใบเบิกรายการนี้');
+            }
+        }
+
+        $reqCode = $requisition->requisition_code;
+
+        DB::transaction(function () use ($requisition, $user, $reqCode) {
+            $requisition->load('items');
+
+            foreach ($requisition->items as $item) {
+                if ($item->status === 'approved' && $item->approved_qty > 0) {
+                    $material = Material::lockForUpdate()->find($item->material_id);
+                    if ($material) {
+                        $material->stock_qty += (int) $item->approved_qty;
+                        $material->save();
+                    }
+                }
+            }
+
+            Transaction::where('transaction_type', 'out')
+                ->where('item_type', 'material')
+                ->where('reference_doc', $reqCode)
+                ->update([
+                    'deleted_by' => $user->id,
+                    'delete_reason' => 'ยกเลิก/ลบใบเบิกวัสดุเลขที่ ' . $reqCode,
+                ]);
+            Transaction::where('transaction_type', 'out')
+                ->where('item_type', 'material')
+                ->where('reference_doc', $reqCode)
+                ->delete();
+
+            \App\Models\ActivityLog::log(
+                'deleted',
+                'requisition',
+                "ลบใบเบิกวัสดุเลขที่ {$reqCode} และคืนยอดสต็อกวัสดุเข้าคลัง",
+                $requisition
+            );
+
+            $requisition->items()->delete();
+            $requisition->delete();
+        });
+
+        return redirect()->route('requisitions.index')
+            ->with('success', "ลบใบเบิกวัสดุเลขที่ {$reqCode} และคืนยอดสต็อกคงคลังเรียบร้อยแล้ว");
+    }
+
     public function officerApproveItem(Request $request, RequisitionItem $item)
     {
         $user = Auth::user();

@@ -13,13 +13,27 @@
     officerNote: '',
     adminNote: '' 
 }">
-    <div class="mb-5 flex justify-between items-center">
+    <div class="mb-5 flex flex-wrap justify-between items-center gap-3">
         <a href="{{ route('requisitions.index') }}" class="text-gray-600 hover:text-gray-800 flex items-center transition-colors font-medium text-sm">
             <i class="fas fa-arrow-left mr-2"></i> ย้อนกลับไปรายการขอเบิก
         </a>
-        <a href="{{ route('requisitions.print', $requisition->id) }}" target="_blank" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 px-5 py-2.5 rounded-xl shadow-md font-bold text-sm flex items-center transition-all">
-            <i class="fas fa-print mr-2"></i> พิมพ์ใบเบิกพัสดุ A4 (พิมพ์ตามแบบมาตรฐาน)
-        </a>
+        <div class="flex flex-wrap items-center gap-2.5">
+            @if(auth()->user()->hasAnyRole(['admin', 'procurement']) || ($requisition->user_id === auth()->id() && $requisition->status === 'pending'))
+                <a href="{{ route('requisitions.edit', $requisition->id) }}" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl shadow-md font-bold text-sm flex items-center transition-all">
+                    <i class="fas fa-edit mr-2"></i> แก้ไขใบเบิก
+                </a>
+                <form action="{{ route('requisitions.destroy', $requisition->id) }}" method="POST" class="inline" onsubmit="return confirm('ยืนยันการลบใบเบิกวัสดุเลขที่ {{ $requisition->requisition_code }} ?\n(หากเคยตัดจ่ายแล้ว ระบบจะคืนยอดวัสดุกลับเข้าคลังให้อัตโนมัติ)');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 px-4 py-2.5 rounded-xl shadow-sm font-bold text-sm flex items-center transition-all">
+                        <i class="fas fa-trash-alt mr-1.5"></i> ลบใบเบิก
+                    </button>
+                </form>
+            @endif
+            <a href="{{ route('requisitions.print', $requisition->id) }}" target="_blank" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 px-5 py-2.5 rounded-xl shadow-md font-bold text-sm flex items-center transition-all">
+                <i class="fas fa-print mr-2"></i> พิมพ์ใบเบิกพัสดุ A4 (พิมพ์ตามแบบมาตรฐาน)
+            </a>
+        </div>
     </div>
 
     @php

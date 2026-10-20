@@ -89,6 +89,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('requisitions/export-csv', [MaterialRequisitionController::class, 'exportCsv'])->name('requisitions.export-csv');
         Route::post('requisitions', [MaterialRequisitionController::class, 'store'])->name('requisitions.store');
         Route::get('requisitions/{requisition}', [MaterialRequisitionController::class, 'show'])->name('requisitions.show');
+        Route::get('requisitions/{requisition}/edit', [MaterialRequisitionController::class, 'edit'])->name('requisitions.edit');
+        Route::put('requisitions/{requisition}', [MaterialRequisitionController::class, 'update'])->name('requisitions.update');
+        Route::delete('requisitions/{requisition}', [MaterialRequisitionController::class, 'destroy'])->name('requisitions.destroy');
         Route::get('requisitions/{requisition}/print', [MaterialRequisitionController::class, 'print'])->name('requisitions.print');
 
         Route::get('notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.read');

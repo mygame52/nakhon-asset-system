@@ -234,9 +234,23 @@
                             @endif
                         </td>
                         <td class="p-4 text-right pr-6 whitespace-nowrap">
-                            <a href="{{ route('requisitions.show', $req->id) }}" class="p-2.5 px-3 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all shadow-sm font-semibold text-xs inline-flex items-center">
-                                <i class="fas fa-eye mr-1.5"></i> ดูใบเบิก
-                            </a>
+                            <div class="inline-flex items-center justify-end gap-1.5">
+                                <a href="{{ route('requisitions.show', $req->id) }}" class="p-2 px-3 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all shadow-sm font-semibold text-xs inline-flex items-center" title="ดูรายละเอียดและพิมพ์ใบเบิก">
+                                    <i class="fas fa-eye mr-1.5"></i> ดูใบเบิก
+                                </a>
+                                @if(auth()->user()->hasAnyRole(['admin', 'procurement']) || ($req->user_id === auth()->id() && $req->status === 'pending'))
+                                    <a href="{{ route('requisitions.edit', $req->id) }}" class="p-2 px-2.5 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-all shadow-sm font-semibold text-xs inline-flex items-center" title="แก้ไขใบเบิก">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form action="{{ route('requisitions.destroy', $req->id) }}" method="POST" class="inline" onsubmit="return confirm('ยืนยันการลบใบเบิกวัสดุเลขที่ {{ $req->requisition_code }} ?\n(หากเคยตัดจ่ายแล้ว ระบบจะคืนยอดวัสดุกลับเข้าคลังให้อัตโนมัติ)');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-2 px-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all shadow-sm font-semibold text-xs inline-flex items-center" title="ลบใบเบิก">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @empty

@@ -15,26 +15,34 @@
 
     $initialItems = old('items');
     if (!$initialItems) {
-        $initialItems = $requisition->items->map(function ($it) {
+        $initialItems = $requisition->items->values()->map(function ($it, $idx) {
             return [
+                '_uid' => 'item_' . $it->id . '_' . $idx,
                 'material_id' => (string) $it->material_id,
                 'requested_qty' => (int) $it->requested_qty,
                 'approved_qty' => $it->approved_qty !== null ? (int) $it->approved_qty : (int) $it->requested_qty,
                 'status' => $it->status,
                 'note' => $it->admin_note ?? $it->officer_note ?? '',
             ];
-        })->values()->toArray();
+        })->toArray();
+    } else {
+        $initialItems = collect($initialItems)->values()->map(function ($it, $idx) {
+            $it['_uid'] = 'old_' . $idx . '_' . uniqid();
+            $it['material_id'] = (string) ($it['material_id'] ?? '');
+            return $it;
+        })->toArray();
     }
 
     $defaultItemStatus = $requisition->status === 'approved' ? 'approved' : 'pending';
 @endphp
 
 <div class="max-w-5xl mx-auto space-y-6" x-data="{
-    items: {{ json_encode($initialItems) }},
+    items: @js($initialItems),
     defaultStatus: '{{ $defaultItemStatus }}',
     addItem() {
         if (this.items.length < 20) {
             this.items.push({
+                _uid: 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                 material_id: '',
                 requested_qty: 1,
                 approved_qty: 1,
@@ -200,7 +208,7 @@
                 </div>
 
                 <div class="space-y-3">
-                    <template x-for="(item, index) in items" :key="index">
+                    <template x-for="(item, index) in items" :key="item._uid">
                         <div class="p-4 bg-gray-50/80 border border-gray-200 rounded-2xl space-y-3 hover:border-purple-200 transition-all">
                             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                                 <!-- Material Select -->
@@ -216,8 +224,8 @@
                                                 $alreadyDeducted = $deductedMap[$mat->id] ?? 0;
                                                 $maxAvail = $mat->stock_qty + $alreadyDeducted;
                                             @endphp
-                                            <option value="{{ $mat->id }}">
-                                                [{{ $mat->code }}] {{ $mat->name }} (คงเหลือในคลัง: {{ number_format($mat->stock_qty) }}{{ $alreadyDeducted > 0 ? ' + เดิมในใบนี้ ' . number_format($alreadyDeducted) . ' = เบิกได้สูงสุด ' . number_format($maxAvail) : '' }} {{ $mat->unit }})
+                                            <option value="{{ $mat->id }}" :selected="String(item.material_id) === '{{ $mat->id }}'">
+                                                [{{ $mat->material_code }}] {{ $mat->name }} (คงเหลือในคลัง: {{ number_format($mat->stock_qty) }}{{ $alreadyDeducted > 0 ? ' + เดิมในใบนี้ ' . number_format($alreadyDeducted) . ' = เบิกได้สูงสุด ' . number_format($maxAvail) : '' }} {{ $mat->unit }})
                                             </option>
                                         @endforeach
                                     </select>

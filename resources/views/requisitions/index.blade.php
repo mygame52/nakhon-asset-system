@@ -178,15 +178,15 @@
                 <tbody class="divide-y divide-gray-100/80 text-sm">
                     @forelse($requisitions as $req)
                     <tr class="hover:bg-purple-50/30 transition-colors group">
-                        <td class="p-4 px-6 font-bold text-purple-700 whitespace-nowrap">
+                        <td class="p-4 px-6 font-bold text-purple-700 whitespace-nowrap align-top">
                             {{ $req->requisition_code }}
                             <div class="text-[11px] font-normal text-gray-400 mt-0.5">{{ $req->created_at->format('d/m/Y H:i') }}</div>
                         </td>
-                        <td class="p-4 px-4">
+                        <td class="p-4 px-4 align-top">
                             <div class="font-bold text-gray-800">{{ $req->requester_display_name }}</div>
                             <div class="text-xs text-gray-500">{{ $req->department->name ?? '-' }}</div>
                         </td>
-                        <td class="p-4 px-4">
+                        <td class="p-4 px-4 align-top">
                             <div class="space-y-1">
                                 @foreach($req->items as $item)
                                     <div class="flex items-center gap-2 text-xs">
@@ -210,7 +210,7 @@
                                 </div>
                             @endif
                         </td>
-                        <td class="p-4 text-center whitespace-nowrap">
+                        <td class="p-4 text-center whitespace-nowrap align-top">
                             @if($req->status == 'pending')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200 shadow-sm animate-pulse">
                                     <i class="fas fa-clock mr-1.5"></i> รอเจ้าหน้าที่พัสดุ
@@ -233,7 +233,7 @@
                                 </span>
                             @endif
                         </td>
-                        <td class="p-4 text-right pr-6 whitespace-nowrap">
+                        <td class="p-4 text-right pr-6 whitespace-nowrap align-top">
                             <div class="inline-flex items-center justify-end gap-1.5">
                                 <a href="{{ route('requisitions.show', $req->id) }}" class="p-2 px-3 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all shadow-sm font-semibold text-xs inline-flex items-center" title="ดูรายละเอียดและพิมพ์ใบเบิก">
                                     <i class="fas fa-eye mr-1.5"></i> ดูใบเบิก

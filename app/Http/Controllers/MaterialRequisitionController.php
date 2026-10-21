@@ -429,18 +429,12 @@ class MaterialRequisitionController extends Controller
                 }
             }
 
-            // 2. Soft-delete old outward Stock Card transactions for this requisition
-            Transaction::where('transaction_type', 'out')
+            // 2. Permanently delete old outward Stock Card transactions for this requisition so old doc code never lingers
+            Transaction::withTrashed()
+                ->where('transaction_type', 'out')
                 ->where('item_type', 'material')
                 ->where('reference_doc', $oldReqCode)
-                ->update([
-                    'deleted_by' => $user->id,
-                    'delete_reason' => 'ปรับปรุงข้อมูลใบเบิก ' . $oldReqCode,
-                ]);
-            Transaction::where('transaction_type', 'out')
-                ->where('item_type', 'material')
-                ->where('reference_doc', $oldReqCode)
-                ->delete();
+                ->forceDelete();
 
             // 3. Update Requisition Header
             $reqDate = Carbon::parse($validated['requisition_date']);
@@ -588,17 +582,11 @@ class MaterialRequisitionController extends Controller
                 }
             }
 
-            Transaction::where('transaction_type', 'out')
+            Transaction::withTrashed()
+                ->where('transaction_type', 'out')
                 ->where('item_type', 'material')
                 ->where('reference_doc', $reqCode)
-                ->update([
-                    'deleted_by' => $user->id,
-                    'delete_reason' => 'ยกเลิก/ลบใบเบิกวัสดุเลขที่ ' . $reqCode,
-                ]);
-            Transaction::where('transaction_type', 'out')
-                ->where('item_type', 'material')
-                ->where('reference_doc', $reqCode)
-                ->delete();
+                ->forceDelete();
 
             \App\Models\ActivityLog::log(
                 'deleted',

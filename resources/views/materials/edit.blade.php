@@ -31,6 +31,19 @@
     receiptDate: '{{ old('transaction_date', $txDate) }}',
     receiptParty: '{{ old('receipt_party_name', addslashes($initialParty)) }}',
     receiptDoc: '{{ old('receipt_ref_doc', addslashes($initialRefDoc)) }}',
+    targetTxId: {{ old('target_transaction_id', $initialTx->id ?? 'null') }},
+    replaceAllIn: {{ (isset($inTransactions) && $inTransactions->count() > 1) ? 'true' : 'false' }},
+    selectTx(tx) {
+        this.targetTxId = tx.id;
+        this.receiptDate = tx.date;
+        if (tx.reference_doc === 'ยอดยกมา' || tx.party_name === 'ยอดยกมาเริ่มต้น') {
+            this.stockMode = 'opening_balance';
+        } else {
+            this.stockMode = 'first_receipt';
+            this.receiptParty = tx.party_name !== 'รับเข้าพัสดุเริ่มต้น' ? tx.party_name : '';
+            this.receiptDoc = tx.reference_doc !== 'รับเข้าสต็อก' ? tx.reference_doc : '';
+        }
+    },
     aiGenerating: false,
     isSubmitting: false,
     getFiscalYearBadge(dateStr) {
@@ -253,6 +266,42 @@
                             สำหรับจัดลงปีงบประมาณในสมุดบัญชีวัสดุ
                         </span>
                     </div>
+
+                    <input type="hidden" name="target_transaction_id" :value="targetTxId">
+
+                    @if(isset($inTransactions) && $inTransactions->count() > 1)
+                    <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5 text-xs">
+                        <div class="font-bold text-amber-900 flex items-center justify-between">
+                            <span><i class="fas fa-exclamation-triangle text-amber-600 mr-1.5"></i> พบรายการรับเข้าในสมุดบัญชีวัสดุของพัสดุนี้ {{ $inTransactions->count() }} รายการ (คลิกเลือกรายการที่ต้องการแก้ไข):</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            @foreach($inTransactions as $txItem)
+                                @php
+                                    $txItemDate = $txItem->transaction_date ? \Carbon\Carbon::parse($txItem->transaction_date)->format('Y-m-d') : \Carbon\Carbon::parse($txItem->created_at)->format('Y-m-d');
+                                    $txPayload = [
+                                        'id' => $txItem->id,
+                                        'date' => $txItemDate,
+                                        'party_name' => $txItem->party_name ?? '',
+                                        'reference_doc' => $txItem->reference_doc ?? '',
+                                    ];
+                                @endphp
+                                <button type="button" @click='selectTx(@js($txPayload))'
+                                    :class="targetTxId == {{ $txItem->id }} ? 'border-purple-600 bg-purple-50/80 ring-2 ring-purple-400/40' : 'border-amber-200 bg-white hover:bg-amber-100/40'"
+                                    class="p-2.5 rounded-xl border text-left transition-all flex items-center justify-between">
+                                    <div>
+                                        <div class="font-bold text-gray-900 font-mono">{{ $txItem->reference_doc ?? '-' }} <span class="text-emerald-700">(รับ {{ number_format($txItem->quantity) }})</span></div>
+                                        <div class="text-[11px] text-gray-600">{{ $txItem->party_name ?? '-' }} | วันที่ {{ \Carbon\Carbon::parse($txItemDate)->addYears(543)->format('d/m/Y') }}</div>
+                                    </div>
+                                    <span x-show="targetTxId == {{ $txItem->id }}" class="px-2 py-0.5 bg-purple-600 text-white rounded-full text-[10px] font-bold">กำลังเลือก</span>
+                                </button>
+                            @endforeach
+                        </div>
+                        <label class="flex items-center gap-2 pt-1 cursor-pointer font-bold text-rose-800">
+                            <input type="checkbox" name="replace_all_in_transactions" value="1" x-model="replaceAllIn" class="rounded text-rose-600 focus:ring-rose-500">
+                            <span>ลบรายการรับเข้าอื่นที่ซ้ำซ้อนออกทั้งหมด ให้เหลือเฉพาะรายการที่แก้ไขนี้รายการเดียว (และคำนวณยอดคงเหลือใหม่)</span>
+                        </label>
+                    </div>
+                    @endif
 
                     <!-- Radio mode selector -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">

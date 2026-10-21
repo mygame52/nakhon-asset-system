@@ -197,14 +197,19 @@ class MaterialController extends Controller
     public function edit(Material $material)
     {
         $categories = Category::where('type', 'material')->orderBy('code_prefix', 'asc')->get();
-        $initialTx = Transaction::where('item_type', 'material')
+        $inTransactions = Transaction::where('item_type', 'material')
             ->where('item_id', $material->id)
             ->where('transaction_type', 'in')
             ->orderBy('transaction_date', 'asc')
             ->orderBy('id', 'asc')
-            ->first();
+            ->get();
 
-        return view('materials.edit', compact('material', 'categories', 'initialTx'));
+        // เลือกรายการรับเข้าจริง (ที่ไม่ใช่ยอดยกมาเริ่มต้น) เป็นค่าเริ่มต้นในการแก้ไข เพื่อป้องกันการไปดึงยอดยกมาที่ซ่อนอยู่มาสร้างซ้ำ
+        $initialTx = $inTransactions->first(function ($tx) {
+            return $tx->reference_doc !== 'ยอดยกมา' && $tx->party_name !== 'ยอดยกมาเริ่มต้น';
+        }) ?? $inTransactions->first();
+
+        return view('materials.edit', compact('material', 'categories', 'initialTx', 'inTransactions'));
     }
 
     /**
@@ -232,6 +237,8 @@ class MaterialController extends Controller
             'initial_stock_type' => 'nullable|string|in:opening_balance,first_receipt',
             'receipt_party_name' => 'nullable|string|max:255',
             'receipt_ref_doc' => 'nullable|string|max:255',
+            'target_transaction_id' => 'nullable|integer',
+            'replace_all_in_transactions' => 'nullable|boolean',
         ], [
             'material_code.unique' => 'รหัสพัสดุนี้ถูกใช้งานในระบบแล้ว โปรดระบุรหัสอื่น',
             'name.required' => 'กรุณากรอกชื่อหรือชนิดวัสดุ',
@@ -251,23 +258,17 @@ class MaterialController extends Controller
                 }
 
                 $materialData = collect($validated)->except([
-                    'transaction_date', 'initial_stock_type', 'receipt_party_name', 'receipt_ref_doc'
+                    'transaction_date', 'initial_stock_type', 'receipt_party_name', 'receipt_ref_doc',
+                    'target_transaction_id', 'replace_all_in_transactions'
                 ])->all();
 
                 $material->update($materialData);
 
-                // Update or Create Initial Stock Transaction
+                // Update or Replace Initial Stock Transaction (ลบรายการเดิมและสร้างใหม่ตามที่แก้ไข)
                 $txDate = $request->input('transaction_date');
                 if (!empty($txDate)) {
                     $stockType = $request->input('initial_stock_type', 'first_receipt');
                     $parsedDate = Carbon::parse($txDate);
-
-                    $initialTx = Transaction::where('item_type', 'material')
-                        ->where('item_id', $material->id)
-                        ->where('transaction_type', 'in')
-                        ->orderBy('transaction_date', 'asc')
-                        ->orderBy('id', 'asc')
-                        ->first();
 
                     if ($stockType === 'opening_balance') {
                         if ($parsedDate->month == 10 && $parsedDate->day == 1) {
@@ -277,6 +278,16 @@ class MaterialController extends Controller
                         $refDoc = 'ยอดยกมา';
                         $note = 'ลงทะเบียนยอดยกมาเริ่มต้นคุมบัญชีวัสดุ';
                     } else {
+                        // หากเลือกรับเข้าพัสดุ ให้ลบรายการ 'ยอดยกมาเริ่มต้น' ที่อาจค้างอยู่ออกอย่างถาวร เพื่อไม่ให้ถูกแปลงเป็นแถวซ้ำซ้อน
+                        Transaction::where('item_type', 'material')
+                            ->where('item_id', $material->id)
+                            ->where('transaction_type', 'in')
+                            ->where(function ($q) {
+                                $q->where('reference_doc', 'ยอดยกมา')
+                                  ->orWhere('party_name', 'ยอดยกมาเริ่มต้น');
+                            })
+                            ->forceDelete();
+
                         $partyName = trim($request->input('receipt_party_name', ''));
                         $refDoc = trim($request->input('receipt_ref_doc', ''));
                         $partyName = !empty($partyName) ? $partyName : 'รับเข้าพัสดุเริ่มต้น';
@@ -284,23 +295,81 @@ class MaterialController extends Controller
                         $note = 'รับเข้าพัสดุครั้งแรก';
                     }
 
-                    if ($initialTx) {
-                        $initialTx->transaction_date = $parsedDate->toDateString();
-                        $initialTx->party_name = $partyName;
-                        $initialTx->reference_doc = $refDoc;
-                        $initialTx->note = $note;
-                        if (isset($validated['unit_price'])) {
-                            $initialTx->unit_price = $validated['unit_price'];
-                        }
+                    $targetTxId = $request->input('target_transaction_id');
+                    $targetTx = null;
 
-                        $hasOut = Transaction::where('item_type', 'material')
+                    if (!empty($targetTxId)) {
+                        $targetTx = Transaction::where('item_type', 'material')
+                            ->where('item_id', $material->id)
+                            ->where('transaction_type', 'in')
+                            ->find($targetTxId);
+                    }
+
+                    if (!$targetTx) {
+                        $targetTx = Transaction::where('item_type', 'material')
+                            ->where('item_id', $material->id)
+                            ->where('transaction_type', 'in')
+                            ->orderBy('transaction_date', 'asc')
+                            ->orderBy('id', 'asc')
+                            ->first();
+                    }
+
+                    $hasOut = Transaction::where('item_type', 'material')
+                        ->where('item_id', $material->id)
+                        ->where('transaction_type', 'out')
+                        ->exists();
+
+                    $replaceAllIn = $request->boolean('replace_all_in_transactions');
+
+                    if ($replaceAllIn) {
+                        // ลบรายการรับเข้าเดิมทั้งหมดของวัสดุนี้ แล้วสร้างใหม่เพียงรายการเดียวตามที่แก้ไข
+                        $preservedQty = $targetTx ? $targetTx->quantity : $validated['stock_qty'];
+                        if (!$hasOut) {
+                            $preservedQty = $validated['stock_qty'];
+                        }
+                        Transaction::where('item_type', 'material')
+                            ->where('item_id', $material->id)
+                            ->where('transaction_type', 'in')
+                            ->forceDelete();
+
+                        Transaction::create([
+                            'transaction_type' => 'in',
+                            'item_type' => 'material',
+                            'item_id' => $material->id,
+                            'quantity' => $preservedQty,
+                            'unit_price' => $validated['unit_price'] ?? $material->unit_price,
+                            'user_id' => Auth::id() ?? 1,
+                            'party_name' => $partyName,
+                            'reference_doc' => $refDoc,
+                            'note' => $note,
+                            'transaction_date' => $parsedDate->toDateString(),
+                            'status' => 'completed',
+                        ]);
+
+                        $totalOut = Transaction::where('item_type', 'material')
                             ->where('item_id', $material->id)
                             ->where('transaction_type', 'out')
-                            ->exists();
-                        if (!$hasOut) {
-                            $initialTx->quantity = $validated['stock_qty'];
-                        }
-                        $initialTx->save();
+                            ->sum('quantity');
+                        $material->stock_qty = max(0, (int) $preservedQty - (int) $totalOut);
+                        $material->save();
+                    } elseif ($targetTx) {
+                        // ลบรายการรับเข้าเดิมทิ้งอย่างถาวร (ไม่ให้เลขที่เอกสารเดิมค้าง) แล้วสร้างรายการใหม่ตามที่แก้ไข
+                        $txQty = $hasOut ? $targetTx->quantity : $validated['stock_qty'];
+                        $targetTx->forceDelete();
+
+                        Transaction::create([
+                            'transaction_type' => 'in',
+                            'item_type' => 'material',
+                            'item_id' => $material->id,
+                            'quantity' => $txQty,
+                            'unit_price' => $validated['unit_price'] ?? $material->unit_price,
+                            'user_id' => Auth::id() ?? 1,
+                            'party_name' => $partyName,
+                            'reference_doc' => $refDoc,
+                            'note' => $note,
+                            'transaction_date' => $parsedDate->toDateString(),
+                            'status' => 'completed',
+                        ]);
                     } elseif ($validated['stock_qty'] > 0) {
                         Transaction::create([
                             'transaction_type' => 'in',

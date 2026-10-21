@@ -115,6 +115,12 @@ class MaterialStockCardController extends Controller
             ->orderBy('id', 'asc')
             ->get();
 
+        // Map outward reference_doc to Requisition ID for direct editing link
+        $outRefDocs = $rawTransactions->where('transaction_type', 'out')->pluck('reference_doc')->filter()->unique()->values();
+        $requisitionMap = $outRefDocs->isNotEmpty()
+            ? \App\Models\Requisition::whereIn('requisition_code', $outRefDocs)->pluck('id', 'requisition_code')
+            : collect();
+
         // Compute running balance for the fiscal year
         $entries = [];
         $runningBalance = $openingBalance;
@@ -123,6 +129,8 @@ class MaterialStockCardController extends Controller
         if ($openingBalance > 0) {
             $entries[] = (object) [
                 'id' => 0,
+                'transaction_type' => 'opening',
+                'requisition_id' => null,
                 'date' => $fyStart->toDateString(),
                 'party_name' => 'ยอดยกมาจากปีงบประมาณ ' . ($fiscalYearBE - 1),
                 'reference_doc' => 'ยอดยกมา',
@@ -149,6 +157,8 @@ class MaterialStockCardController extends Controller
 
             $entries[] = (object) [
                 'id' => $tx->id,
+                'transaction_type' => $tx->transaction_type,
+                'requisition_id' => $tx->transaction_type === 'out' ? ($requisitionMap[$tx->reference_doc] ?? null) : null,
                 'date' => $tx->transaction_date ? $tx->transaction_date->format('Y-m-d') : $tx->created_at->format('Y-m-d'),
                 'party_name' => $tx->party_name ?? ($tx->user ? $tx->user->name : '-'),
                 'reference_doc' => $tx->reference_doc ?? '-',
@@ -345,6 +355,129 @@ class MaterialStockCardController extends Controller
         $material->update($validated);
 
         return back()->with('success', 'ปรับปรุงข้อมูลการคุมบัญชีวัสดุเรียบร้อยแล้ว');
+    }
+
+    /**
+     * Update a transaction directly from the Stock Card (ลบรายการเดิมทิ้งและสร้างใหม่ตามที่แก้ไข พร้อมคำนวณยอดคงเหลือใหม่).
+     */
+    public function updateTransaction(Request $request, Transaction $transaction)
+    {
+        if ($transaction->item_type !== 'material') {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'transaction_date' => 'required|date',
+            'party_name'       => 'required|string|max:255',
+            'reference_doc'    => 'nullable|string|max:255',
+            'quantity'         => 'required|integer|min:1',
+            'unit_price'       => 'nullable|numeric|min:0',
+            'note'             => 'nullable|string|max:1000',
+        ]);
+
+        $materialId = $transaction->item_id;
+        $oldDoc = $transaction->reference_doc;
+        $txType = $transaction->transaction_type;
+        $originalUserId = $transaction->user_id ?? Auth::id();
+
+        DB::transaction(function () use ($transaction, $materialId, $validated, $txType, $originalUserId, $oldDoc) {
+            $material = Material::lockForUpdate()->findOrFail($materialId);
+
+            // ลบรายการเดิมออกอย่างถาวร เพื่อไม่ให้เลขที่เอกสารเดิมค้างในระบบ
+            $transaction->forceDelete();
+
+            $newDoc = !empty(trim($validated['reference_doc'] ?? ''))
+                ? trim($validated['reference_doc'])
+                : ($txType === 'in' ? 'รับเข้าสต็อก' : '-');
+
+            // สร้างรายการใหม่ตามข้อมูลที่แก้ไข
+            $newTx = Transaction::create([
+                'transaction_type' => $txType,
+                'item_type'        => 'material',
+                'item_id'          => $material->id,
+                'quantity'         => $validated['quantity'],
+                'unit_price'       => $validated['unit_price'] ?? $material->unit_price,
+                'user_id'          => $originalUserId,
+                'party_name'       => trim($validated['party_name']),
+                'reference_doc'    => $newDoc,
+                'note'             => !empty(trim($validated['note'] ?? '')) ? trim($validated['note']) : ($txType === 'in' ? 'รับวัสดุเข้าสต็อกคลังพัสดุ' : ''),
+                'transaction_date' => $validated['transaction_date'],
+                'status'           => 'completed',
+                'edited_by'        => Auth::id(),
+                'edited_at'        => now(),
+                'edit_reason'      => "แก้ไขจากสมุดบัญชีวัสดุ (เดิมเลขที่เอกสาร: {$oldDoc} -> {$newDoc})",
+            ]);
+
+            if ($txType === 'in' && isset($validated['unit_price']) && $validated['unit_price'] !== null) {
+                $material->unit_price = $validated['unit_price'];
+            }
+
+            $this->recalculateMaterialStock($material);
+
+            \App\Models\ActivityLog::log(
+                'stock_tx_replace',
+                'material_stock',
+                "แก้ไขรายการในสมุดบัญชีวัสดุ ({$material->name}): ลบเลขที่เอกสารเดิม ({$oldDoc}) และสร้างใหม่เป็น ({$newDoc}) จำนวน {$validated['quantity']} {$material->unit}",
+                $newTx
+            );
+        });
+
+        $parsedDate = Carbon::parse($validated['transaction_date']);
+        $targetFyBE = ($parsedDate->month >= 10 ? $parsedDate->year + 1 : $parsedDate->year) + 543;
+
+        return redirect()->route('stock-cards.show', ['material' => $materialId, 'fiscal_year' => $targetFyBE])
+            ->with('success', "ลบรายการเลขที่เอกสารเดิม ({$oldDoc}) และสร้างรายการใหม่ตามที่แก้ไขเรียบร้อยแล้ว");
+    }
+
+    /**
+     * Permanently delete a transaction from the Stock Card and recalculate stock balance.
+     */
+    public function destroyTransaction(Transaction $transaction)
+    {
+        if ($transaction->item_type !== 'material') {
+            abort(404);
+        }
+
+        $materialId = $transaction->item_id;
+        $oldDoc = $transaction->reference_doc ?? '-';
+        $oldQty = $transaction->quantity;
+
+        DB::transaction(function () use ($transaction, $materialId, $oldDoc, $oldQty) {
+            $material = Material::lockForUpdate()->findOrFail($materialId);
+
+            // ลบรายการออกอย่างถาวร เพื่อไม่ให้เลขที่เอกสารค้างในระบบ
+            $transaction->forceDelete();
+
+            $this->recalculateMaterialStock($material);
+
+            \App\Models\ActivityLog::log(
+                'stock_tx_delete',
+                'material_stock',
+                "ลบรายการออกจากสมุดบัญชีวัสดุ ({$material->name}): เลขที่เอกสาร {$oldDoc} จำนวน {$oldQty} {$material->unit}",
+                $material
+            );
+        });
+
+        return back()->with('success', "ลบรายการเลขที่เอกสาร {$oldDoc} ออกจากสมุดบัญชีวัสดุและคำนวณยอดคงเหลือใหม่เรียบร้อยแล้ว");
+    }
+
+    /**
+     * Recalculate material stock_qty from active transactions.
+     */
+    private function recalculateMaterialStock(Material $material): void
+    {
+        $totalIn = Transaction::where('item_type', 'material')
+            ->where('item_id', $material->id)
+            ->where('transaction_type', 'in')
+            ->sum('quantity');
+
+        $totalOut = Transaction::where('item_type', 'material')
+            ->where('item_id', $material->id)
+            ->where('transaction_type', 'out')
+            ->sum('quantity');
+
+        $material->stock_qty = max(0, (int) $totalIn - (int) $totalOut);
+        $material->save();
     }
 
     /**

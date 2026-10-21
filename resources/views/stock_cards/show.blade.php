@@ -4,7 +4,33 @@
 @section('page_description', 'แบบฟอร์มคุมบัญชีรับ-จ่าย-คงเหลือวัสดุ ตามระเบียบกระทรวงการคลัง และข้อบังคับพัสดุทางราชการ')
 
 @section('content')
-<div class="max-w-6xl mx-auto space-y-6" x-data="{ stockInModal: false, settingsModal: false, showRulesModal: false }">
+<div class="max-w-6xl mx-auto space-y-6" x-data="{
+    stockInModal: false,
+    settingsModal: false,
+    showRulesModal: false,
+    editTxModal: false,
+    editTxForm: {
+        id: null,
+        transaction_type: 'in',
+        transaction_date: '',
+        party_name: '',
+        reference_doc: '',
+        unit_price: 0,
+        quantity: 1,
+        note: ''
+    },
+    openEditTxModal(row) {
+        this.editTxForm.id = row.id;
+        this.editTxForm.transaction_type = row.transaction_type || 'in';
+        this.editTxForm.transaction_date = row.date || '';
+        this.editTxForm.party_name = row.party_name || '';
+        this.editTxForm.reference_doc = (row.reference_doc && row.reference_doc !== '-') ? row.reference_doc : '';
+        this.editTxForm.unit_price = row.unit_price || 0;
+        this.editTxForm.quantity = row.transaction_type === 'out' ? (row.out_qty || 1) : (row.in_qty || 1);
+        this.editTxForm.note = (row.note && row.note !== '-') ? row.note : '';
+        this.editTxModal = true;
+    }
+}">
     <!-- Top Action Bar & Fiscal Year Filter -->
     <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
         <a href="{{ route('stock-cards.index') }}" class="text-gray-600 hover:text-gray-800 flex items-center transition-colors font-semibold text-sm">
@@ -120,7 +146,10 @@
                         </th>
                         <th class="p-2.5 border-r border-gray-900 w-28" rowspan="2">ราคาต่อหน่วย<br>บาท (รวม VAT)</th>
                         <th class="p-1 border-b border-r border-gray-900" colspan="3">จำนวน</th>
-                        <th class="p-2.5 w-32" rowspan="2">หมายเหตุ</th>
+                        <th class="p-2.5 {{ auth()->user()->hasAnyRole(['admin', 'procurement']) ? 'border-r border-gray-900' : '' }} w-32" rowspan="2">หมายเหตุ</th>
+                        @hasanyrole('admin|procurement')
+                        <th class="p-2.5 w-28" rowspan="2">จัดการ</th>
+                        @endhasanyrole
                     </tr>
                     <tr class="bg-gray-100 border-b border-gray-900 font-bold text-gray-900 text-center">
                         <th class="p-2 border-r border-gray-900 w-20">รับ</th>
@@ -158,11 +187,38 @@
                         <td class="p-2.5 border-r border-gray-900 text-center font-bold text-gray-900 bg-gray-50/50">
                             {{ number_format($row->balance_qty) }}
                         </td>
-                        <td class="p-2.5 text-center text-xs text-gray-600">{{ $row->note }}</td>
+                        <td class="p-2.5 {{ auth()->user()->hasAnyRole(['admin', 'procurement']) ? 'border-r border-gray-900' : '' }} text-center text-xs text-gray-600">{{ $row->note }}</td>
+                        @hasanyrole('admin|procurement')
+                        <td class="p-2 text-center whitespace-nowrap">
+                            @if(!empty($row->id))
+                                <div class="flex items-center justify-center gap-1.5">
+                                    @if(($row->transaction_type ?? '') === 'out' && !empty($row->requisition_id))
+                                        <a href="{{ route('requisitions.edit', $row->requisition_id) }}" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all" title="แก้ไขใบเบิกวัสดุ">
+                                            <i class="fas fa-edit"></i> แก้ไข
+                                        </a>
+                                    @else
+                                        <button type="button" @click='openEditTxModal(@js($row))' class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all" title="แก้ไขรายการ (ลบเลขเดิมและสร้างใหม่)">
+                                            <i class="fas fa-edit"></i> แก้ไข
+                                        </button>
+                                    @endif
+
+                                    <form action="{{ route('stock-cards.transactions.destroy', $row->id) }}" method="POST" class="inline" onsubmit="return confirm('ยืนยันการลบรายการเลขที่เอกสาร {{ addslashes($row->reference_doc) }} ออกจากสมุดบัญชีวัสดุ?\n(ระบบจะลบรายการและเลขที่เอกสารนี้ออกอย่างถาวร พร้อมคำนวณยอดคงเหลือใหม่ทันที)');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all" title="ลบรายการนี้ออกจากสมุดบัญชีวัสดุ">
+                                            <i class="fas fa-trash-alt"></i> ลบ
+                                        </button>
+                                    </form>
+                                </div>
+                            @else
+                                <span class="text-[11px] text-gray-400">-</span>
+                            @endif
+                        </td>
+                        @endhasanyrole
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="p-12 text-center text-gray-400 font-medium">
+                        <td colspan="{{ auth()->user()->hasAnyRole(['admin', 'procurement']) ? 9 : 8 }}" class="p-12 text-center text-gray-400 font-medium">
                             ยังไม่มีรายการรับ-จ่ายในสมุดบัญชีวัสดุประจำปีงบประมาณ พ.ศ. {{ $fiscalYearBE }}
                         </td>
                     </tr>
@@ -346,6 +402,74 @@
                         <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
                             <button type="button" @click="settingsModal = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
                             <button type="submit" class="px-6 py-2.5 bg-purple-700 text-white font-bold rounded-xl text-sm shadow-md hover:bg-purple-800 transition-all">บันทึกการตั้งค่า</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Edit Transaction Modal (ลบรายการเดิมแล้วสร้างใหม่ตามที่แก้ไข) -->
+    <template x-teleport="body">
+        <div x-show="editTxModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div x-show="editTxModal" @click="editTxModal = false" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div x-show="editTxModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
+                    <form :action="'{{ url('stock-cards/transactions') }}/' + editTxForm.id" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white flex justify-between items-center">
+                            <h3 class="font-bold text-lg flex items-center">
+                                <i class="fas fa-edit mr-2"></i> แก้ไขรายการในสมุดบัญชีวัสดุ
+                            </h3>
+                            <button type="button" @click="editTxModal = false" class="text-white/60 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+                        </div>
+
+                        <div class="p-6 space-y-4">
+                            <div class="p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-medium border border-amber-200 leading-relaxed">
+                                <i class="fas fa-sync-alt mr-1 text-amber-600"></i>
+                                <span class="font-bold">การทำงาน:</span> ระบบจะ<strong>ลบรายการและเลขที่เอกสารเดิมออกอย่างถาวร</strong> แล้วสร้างรายการใหม่ตามข้อมูลที่แก้ไข พร้อมคำนวณยอดคงเหลือในสมุดบัญชีวัสดุใหม่ทันที
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">วัน เดือน ปี <span class="text-red-500">*</span></label>
+                                <input type="date" name="transaction_date" x-model="editTxForm.transaction_date" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2" x-text="editTxForm.transaction_type === 'out' ? 'จ่ายให้ (ชื่อผู้เบิก / หน่วยงาน) *' : 'รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ) *'"></label>
+                                <input type="text" name="party_name" x-model="editTxForm.party_name" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">เลขที่เอกสาร</label>
+                                    <input type="text" name="reference_doc" x-model="editTxForm.reference_doc" placeholder="เช่น ร 006/2569" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-mono font-semibold outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">ราคาต่อหน่วย (บาท รวม VAT)</label>
+                                    <input type="number" step="0.01" min="0" name="unit_price" x-model="editTxForm.unit_price" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-bold text-right outline-none">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">จำนวน ({{ $material->unit }}) <span class="text-red-500">*</span></label>
+                                <input type="number" name="quantity" x-model="editTxForm.quantity" min="1" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-base font-bold text-amber-800 outline-none">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">หมายเหตุ</label>
+                                <input type="text" name="note" x-model="editTxForm.note" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm outline-none">
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                            <button type="button" @click="editTxModal = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
+                            <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl text-sm shadow-md hover:from-amber-600 hover:to-orange-600 transition-all">
+                                <i class="fas fa-save mr-1.5"></i> ลบเลขเดิมและบันทึกใหม่
+                            </button>
                         </div>
                     </form>
                 </div>

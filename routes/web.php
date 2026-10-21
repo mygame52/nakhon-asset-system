@@ -50,10 +50,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('requisitions/next-code', [MaterialRequisitionController::class, 'getNextCode'])->name('requisitions.next-code');
         Route::post('requisitions/direct', [MaterialRequisitionController::class, 'storeDirect'])->name('requisitions.direct-store');
 
-        // Material Stock Cards Actions (บันทึกรับเข้า & ตั้งค่าอย่างต่ำ/สูง)
+        // Material Stock Cards Actions (บันทึกรับเข้า, แก้ไข/ลบรายการในสมุดบัญชี & ตั้งค่าอย่างต่ำ/สูง)
         Route::post('materials/generate-ai-specs', [\App\Http\Controllers\MaterialAiController::class, 'generateSpecs'])->name('materials.generate-ai-specs');
         Route::post('stock-cards/{material}/stock-in', [\App\Http\Controllers\MaterialStockCardController::class, 'storeStockIn'])->name('stock-cards.stock-in');
         Route::put('stock-cards/{material}/settings', [\App\Http\Controllers\MaterialStockCardController::class, 'updateCardSettings'])->name('stock-cards.update-settings');
+        Route::put('stock-cards/transactions/{transaction}', [\App\Http\Controllers\MaterialStockCardController::class, 'updateTransaction'])->name('stock-cards.transactions.update');
+        Route::delete('stock-cards/transactions/{transaction}', [\App\Http\Controllers\MaterialStockCardController::class, 'destroyTransaction'])->name('stock-cards.transactions.destroy');
 
         // Material Receipts (รายการรับวัสดุเข้าคลัง - ดูประวัติ/แก้ไข/ลบพร้อมเหตุผล)
         Route::get('material-receipts', [\App\Http\Controllers\MaterialReceiptController::class, 'index'])->name('material-receipts.index');

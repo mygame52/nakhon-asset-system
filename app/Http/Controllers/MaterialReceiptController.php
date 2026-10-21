@@ -98,34 +98,54 @@ class MaterialReceiptController extends Controller
         DB::transaction(function () use ($material_receipt, $material, $validated) {
             $oldQty = $material_receipt->quantity;
             $newQty = $validated['quantity'];
-            $qtyDelta = $newQty - $oldQty;
+            $oldDoc = $material_receipt->reference_doc ?? '-';
+            $newDoc = !empty(trim($validated['reference_doc'] ?? '')) ? trim($validated['reference_doc']) : 'รับเข้าสต็อก';
+            $unitPrice = $validated['unit_price'] ?? $material_receipt->unit_price;
+            $note = !empty(trim($validated['note'] ?? '')) ? trim($validated['note']) : ($material_receipt->note ?? 'รับวัสดุเข้าสต็อกคลังพัสดุ');
+            $originalUserId = $material_receipt->user_id ?? Auth::id();
 
-            // Update Material Stock Quantity according to the delta
-            $material->stock_qty = max(0, $material->stock_qty + $qtyDelta);
-            if (!empty($validated['unit_price'])) {
-                $material->unit_price = $validated['unit_price'];
-            }
-            $material->save();
+            // ลบรายการเดิมออกอย่างถาวร เพื่อไม่ให้เลขที่เอกสารเดิมค้าง
+            $material_receipt->forceDelete();
 
-            // Update Transaction Record
-            $material_receipt->update([
+            // สร้างรายการใหม่ตามข้อมูลที่แก้ไข
+            $newReceipt = Transaction::create([
+                'transaction_type' => 'in',
+                'item_type'        => 'material',
+                'item_id'          => $material->id,
+                'quantity'         => $newQty,
+                'unit_price'       => $unitPrice,
+                'user_id'          => $originalUserId,
+                'party_name'       => trim($validated['party_name']),
+                'reference_doc'    => $newDoc,
+                'note'             => $note,
                 'transaction_date' => $validated['transaction_date'],
-                'quantity'         => $validated['quantity'],
-                'unit_price'       => $validated['unit_price'] ?? $material_receipt->unit_price,
-                'party_name'       => $validated['party_name'],
-                'reference_doc'    => $validated['reference_doc'] ?? $material_receipt->reference_doc,
-                'note'             => $validated['note'] ?? $material_receipt->note,
+                'status'           => 'completed',
                 'edited_by'        => Auth::id(),
                 'edited_at'        => now(),
                 'edit_reason'      => $validated['edit_reason'],
             ]);
 
+            if (!empty($validated['unit_price'])) {
+                $material->unit_price = $validated['unit_price'];
+            }
+
+            $totalIn = Transaction::where('item_type', 'material')
+                ->where('item_id', $material->id)
+                ->where('transaction_type', 'in')
+                ->sum('quantity');
+            $totalOut = Transaction::where('item_type', 'material')
+                ->where('item_id', $material->id)
+                ->where('transaction_type', 'out')
+                ->sum('quantity');
+            $material->stock_qty = max(0, (int) $totalIn - (int) $totalOut);
+            $material->save();
+
             // Log Audit Activity
             ActivityLog::log(
                 'stock_in_edit',
                 'material_stock',
-                "แก้ไขรายการรับวัสดุเข้าคลัง #{$material_receipt->id} ({$material->name}): เปลี่ยนจำนวนจาก {$oldQty} เป็น {$newQty} {$material->unit} | เหตุผล: {$validated['edit_reason']}",
-                $material_receipt
+                "แก้ไขรายการรับวัสดุเข้าคลัง ({$material->name}): ลบเลขที่เอกสารเดิม ({$oldDoc}) และสร้างใหม่เป็น ({$newDoc}) จำนวน {$newQty} {$material->unit} | เหตุผล: {$validated['edit_reason']}",
+                $newReceipt
             );
         });
 

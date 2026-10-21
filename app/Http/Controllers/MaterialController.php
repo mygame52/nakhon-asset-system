@@ -357,6 +357,15 @@ class MaterialController extends Controller
                         $txQty = $hasOut ? $targetTx->quantity : $validated['stock_qty'];
                         $targetTx->forceDelete();
 
+                        if ($refDoc !== 'รับเข้าสต็อก' && $refDoc !== 'ยอดยกมา') {
+                            Transaction::withTrashed()
+                                ->where('item_type', 'material')
+                                ->where('item_id', $material->id)
+                                ->where('transaction_type', 'in')
+                                ->where('reference_doc', $refDoc)
+                                ->forceDelete();
+                        }
+
                         Transaction::create([
                             'transaction_type' => 'in',
                             'item_type' => 'material',
@@ -370,6 +379,19 @@ class MaterialController extends Controller
                             'transaction_date' => $parsedDate->toDateString(),
                             'status' => 'completed',
                         ]);
+
+                        if ($hasOut) {
+                            $totalIn = Transaction::where('item_type', 'material')
+                                ->where('item_id', $material->id)
+                                ->where('transaction_type', 'in')
+                                ->sum('quantity');
+                            $totalOut = Transaction::where('item_type', 'material')
+                                ->where('item_id', $material->id)
+                                ->where('transaction_type', 'out')
+                                ->sum('quantity');
+                            $material->stock_qty = max(0, (int) $totalIn - (int) $totalOut);
+                            $material->save();
+                        }
                     } elseif ($validated['stock_qty'] > 0) {
                         Transaction::create([
                             'transaction_type' => 'in',

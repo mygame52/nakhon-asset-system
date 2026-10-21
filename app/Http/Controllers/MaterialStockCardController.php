@@ -390,6 +390,16 @@ class MaterialStockCardController extends Controller
                 ? trim($validated['reference_doc'])
                 : ($txType === 'in' ? 'รับเข้าสต็อก' : '-');
 
+            // หากในวัสดุชนิดเดียวกันนี้มีรายการที่มีเลขที่เอกสารเดียวกัน ($newDoc) ค้างอยู่ก่อนหน้า ให้ลบออกด้วยเพื่อป้องกันแถวซ้ำซ้อน
+            if ($newDoc !== 'รับเข้าสต็อก' && $newDoc !== '-' && $newDoc !== 'ยอดยกมา') {
+                Transaction::withTrashed()
+                    ->where('item_type', 'material')
+                    ->where('item_id', $material->id)
+                    ->where('transaction_type', $txType)
+                    ->where('reference_doc', $newDoc)
+                    ->forceDelete();
+            }
+
             // สร้างรายการใหม่ตามข้อมูลที่แก้ไข
             $newTx = Transaction::create([
                 'transaction_type' => $txType,

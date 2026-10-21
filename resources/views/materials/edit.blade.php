@@ -285,7 +285,7 @@
                                         'reference_doc' => $txItem->reference_doc ?? '',
                                     ];
                                 @endphp
-                                <button type="button" @click='selectTx(@js($txPayload))'
+                                <button type="button" data-tx="{{ json_encode($txPayload) }}" @click="selectTx(JSON.parse($el.dataset.tx))"
                                     :class="targetTxId == {{ $txItem->id }} ? 'border-purple-600 bg-purple-50/80 ring-2 ring-purple-400/40' : 'border-amber-200 bg-white hover:bg-amber-100/40'"
                                     class="p-2.5 rounded-xl border text-left transition-all flex items-center justify-between">
                                     <div>

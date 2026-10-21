@@ -197,7 +197,7 @@
                                             <i class="fas fa-edit"></i> แก้ไข
                                         </a>
                                     @else
-                                        <button type="button" @click='openEditTxModal(@js($row))' class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all" title="แก้ไขรายการ (ลบเลขเดิมและสร้างใหม่)">
+                                        <button type="button" data-row="{{ json_encode($row) }}" @click="openEditTxModal(JSON.parse($el.dataset.row))" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all" title="แก้ไขรายการ (ลบเลขเดิมและสร้างใหม่)">
                                             <i class="fas fa-edit"></i> แก้ไข
                                         </button>
                                     @endif
@@ -410,71 +410,69 @@
     </template>
 
     <!-- Edit Transaction Modal (ลบรายการเดิมแล้วสร้างใหม่ตามที่แก้ไข) -->
-    <template x-teleport="body">
-        <div x-show="editTxModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                <div x-show="editTxModal" @click="editTxModal = false" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div x-show="editTxModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div x-show="editTxModal" @click="editTxModal = false" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                <div x-show="editTxModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
-                    <form :action="'{{ url('stock-cards/transactions') }}/' + editTxForm.id" method="POST">
-                        @csrf
-                        @method('PUT')
-                        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white flex justify-between items-center">
-                            <h3 class="font-bold text-lg flex items-center">
-                                <i class="fas fa-edit mr-2"></i> แก้ไขรายการในสมุดบัญชีวัสดุ
-                            </h3>
-                            <button type="button" @click="editTxModal = false" class="text-white/60 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+            <div x-show="editTxModal" x-transition.scale class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full relative z-50">
+                <form :action="'{{ url('stock-cards/transactions') }}/' + editTxForm.id" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white flex justify-between items-center">
+                        <h3 class="font-bold text-lg flex items-center">
+                            <i class="fas fa-edit mr-2"></i> แก้ไขรายการในสมุดบัญชีวัสดุ
+                        </h3>
+                        <button type="button" @click="editTxModal = false" class="text-white/60 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+                    </div>
+
+                    <div class="p-6 space-y-4">
+                        <div class="p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-medium border border-amber-200 leading-relaxed">
+                            <i class="fas fa-sync-alt mr-1 text-amber-600"></i>
+                            <span class="font-bold">การทำงาน:</span> ระบบจะ<strong>ลบรายการและเลขที่เอกสารเดิมออกอย่างถาวร</strong> แล้วสร้างรายการใหม่ตามข้อมูลที่แก้ไข พร้อมคำนวณยอดคงเหลือในสมุดบัญชีวัสดุใหม่ทันที
                         </div>
 
-                        <div class="p-6 space-y-4">
-                            <div class="p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-medium border border-amber-200 leading-relaxed">
-                                <i class="fas fa-sync-alt mr-1 text-amber-600"></i>
-                                <span class="font-bold">การทำงาน:</span> ระบบจะ<strong>ลบรายการและเลขที่เอกสารเดิมออกอย่างถาวร</strong> แล้วสร้างรายการใหม่ตามข้อมูลที่แก้ไข พร้อมคำนวณยอดคงเหลือในสมุดบัญชีวัสดุใหม่ทันที
-                            </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">วัน เดือน ปี <span class="text-red-500">*</span></label>
+                            <input type="date" name="transaction_date" x-model="editTxForm.transaction_date" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
+                        </div>
 
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2" x-text="editTxForm.transaction_type === 'out' ? 'จ่ายให้ (ชื่อผู้เบิก / หน่วยงาน) *' : 'รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ) *'"></label>
+                            <input type="text" name="party_name" x-model="editTxForm.party_name" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">วัน เดือน ปี <span class="text-red-500">*</span></label>
-                                <input type="date" name="transaction_date" x-model="editTxForm.transaction_date" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">เลขที่เอกสาร</label>
+                                <input type="text" name="reference_doc" x-model="editTxForm.reference_doc" placeholder="เช่น ร 006/2569" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-mono font-semibold outline-none">
                             </div>
-
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2" x-text="editTxForm.transaction_type === 'out' ? 'จ่ายให้ (ชื่อผู้เบิก / หน่วยงาน) *' : 'รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ) *'"></label>
-                                <input type="text" name="party_name" x-model="editTxForm.party_name" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-semibold outline-none">
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">เลขที่เอกสาร</label>
-                                    <input type="text" name="reference_doc" x-model="editTxForm.reference_doc" placeholder="เช่น ร 006/2569" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-mono font-semibold outline-none">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">ราคาต่อหน่วย (บาท รวม VAT)</label>
-                                    <input type="number" step="0.01" min="0" name="unit_price" x-model="editTxForm.unit_price" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-bold text-right outline-none">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">จำนวน ({{ $material->unit }}) <span class="text-red-500">*</span></label>
-                                <input type="number" name="quantity" x-model="editTxForm.quantity" min="1" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-base font-bold text-amber-800 outline-none">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">หมายเหตุ</label>
-                                <input type="text" name="note" x-model="editTxForm.note" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm outline-none">
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">ราคาต่อหน่วย (บาท รวม VAT)</label>
+                                <input type="number" step="0.01" min="0" name="unit_price" x-model="editTxForm.unit_price" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm font-bold text-right outline-none">
                             </div>
                         </div>
 
-                        <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-                            <button type="button" @click="editTxModal = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
-                            <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl text-sm shadow-md hover:from-amber-600 hover:to-orange-600 transition-all">
-                                <i class="fas fa-save mr-1.5"></i> ลบเลขเดิมและบันทึกใหม่
-                            </button>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">จำนวน ({{ $material->unit }}) <span class="text-red-500">*</span></label>
+                            <input type="number" name="quantity" x-model="editTxForm.quantity" min="1" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-base font-bold text-amber-800 outline-none">
                         </div>
-                    </form>
-                </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">หมายเหตุ</label>
+                            <input type="text" name="note" x-model="editTxForm.note" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm outline-none">
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                        <button type="button" @click="editTxModal = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
+                        <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl text-sm shadow-md hover:from-amber-600 hover:to-orange-600 transition-all">
+                            <i class="fas fa-save mr-1.5"></i> ลบเลขเดิมและบันทึกใหม่
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
-    </template>
+    </div>
 </div>
 @endsection

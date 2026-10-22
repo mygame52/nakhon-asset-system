@@ -4,9 +4,20 @@
 @section('page_description', 'ตรวจสอบ แก้ไข หรือยกเลิกรายการรับวัสดุเข้า พร้อมบันทึกร่องรอยผู้รับผิดชอบและเหตุผลอย่างสมบูรณ์')
 
 @section('content')
+@php
+    $materialPriceMap = $materials->pluck('unit_price', 'id');
+@endphp
 <div class="space-y-6" x-data="{
+    batchModalOpen: false,
     editModalOpen: false,
     deleteModalOpen: false,
+    isFetchingCode: false,
+    batchDate: '{{ date('Y-m-d') }}',
+    batchCode: '',
+    batchVendor: '',
+    batchNote: 'รับวัสดุเข้าสต็อกคลังพัสดุ',
+    batchItems: [{ _uid: 'b_1', material_id: '', quantity: 1, unit_price: '' }],
+    materialPrices: @js($materialPriceMap),
     activeReceipt: {},
     editForm: {
         id: null,
@@ -24,6 +35,48 @@
         quantity: 0,
         unit: '',
         delete_reason: ''
+    },
+    openBatchModal() {
+        this.batchModalOpen = true;
+        if (!this.batchCode) {
+            this.fetchNextReceiptCode();
+        }
+    },
+    fetchNextReceiptCode() {
+        this.isFetchingCode = true;
+        fetch('{{ url('material-receipts/next-code') }}?date=' + this.batchDate)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.code) {
+                    this.batchCode = data.code;
+                }
+                this.isFetchingCode = false;
+            })
+            .catch(() => {
+                this.isFetchingCode = false;
+            });
+    },
+    addBatchItem() {
+        if (this.batchItems.length < 100) {
+            this.batchItems.push({
+                _uid: 'b_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                material_id: '',
+                quantity: 1,
+                unit_price: ''
+            });
+        } else {
+            alert('สามารถเพิ่มรายการวัสดุรับเข้าได้สูงสุด 100 รายการต่อครั้ง');
+        }
+    },
+    removeBatchItem(index) {
+        if (this.batchItems.length > 1) {
+            this.batchItems.splice(index, 1);
+        }
+    },
+    onSelectBatchMaterial(item) {
+        if (item.material_id && this.materialPrices[item.material_id] !== undefined && this.materialPrices[item.material_id] !== null) {
+            item.unit_price = this.materialPrices[item.material_id];
+        }
     },
     openEditModal(receipt) {
         this.activeReceipt = receipt;
@@ -99,10 +152,10 @@
             </h2>
             <p class="text-sm text-gray-500 mt-1">บันทึกคุมการรับวัสดุเข้าสต็อก รองรับการแก้ไขและยกเลิกรายการพร้อมการบันทึกร่องรอยผู้ดำเนินการ (Audit Trail)</p>
         </div>
-        <div class="flex items-center gap-2">
-            <a href="{{ route('stock-cards.index') }}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-500/20 flex items-center">
-                <i class="fas fa-plus-circle mr-2"></i> บันทึกรับเข้าสต็อกใหม่
-            </a>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" @click="openBatchModal()" class="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-500/20 flex items-center">
+                <i class="fas fa-plus-circle mr-2"></i> บันทึกรับวัสดุเข้าคลัง (หลายรายการ)
+            </button>
         </div>
     </div>
 
@@ -346,12 +399,12 @@
                                 @if(!$isDeleted)
                                     <div class="flex items-center justify-center gap-1.5">
                                         <!-- Edit Button -->
-                                        <button type="button" @click="openEditModal({{ json_encode($rc) }})" class="px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1">
+                                        <button type="button" data-rc="{{ json_encode($rc) }}" @click="openEditModal(JSON.parse($el.dataset.rc))" class="px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1">
                                             <i class="fas fa-edit"></i> แก้ไข
                                         </button>
 
                                         <!-- Delete Button -->
-                                        <button type="button" @click="openDeleteModal({{ json_encode($rc) }})" class="px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1">
+                                        <button type="button" data-rc="{{ json_encode($rc) }}" @click="openDeleteModal(JSON.parse($el.dataset.rc))" class="px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1">
                                             <i class="fas fa-trash-alt"></i> ลบรายการ
                                         </button>
                                     </div>
@@ -500,6 +553,141 @@
                     </button>
                     <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center">
                         <i class="fas fa-trash-alt mr-1.5"></i> ยืนยันการลบรายการ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- BATCH RECEIPT MODAL (บันทึกรับวัสดุเข้าคลังหลายรายการในบิลเดียว) -->
+    <div x-show="batchModalOpen" x-transition.opacity class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto" style="display: none;">
+        <div @click.away="batchModalOpen = false" class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-8">
+            <div class="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex justify-between items-center">
+                <div>
+                    <h3 class="font-bold text-lg flex items-center">
+                        <i class="fas fa-file-import mr-2 text-amber-300"></i> บันทึกรับวัสดุเข้าคลัง (หลายรายการในบิลเดียว)
+                    </h3>
+                    <p class="text-xs text-emerald-100 mt-0.5">กรอกเลขที่เอกสารและร้านค้าครั้งเดียว เพิ่มรายการวัสดุได้สูงสุด 100 รายการ พร้อมอัปเดตสมุดบัญชีวัสดุทันที</p>
+                </div>
+                <button type="button" @click="batchModalOpen = false" class="text-white/80 hover:text-white text-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form action="{{ route('material-receipts.store-batch') }}" method="POST">
+                @csrf
+                <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                    <!-- Date & Document Number -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider mb-1.5">
+                                <i class="fas fa-calendar-alt text-emerald-600 mr-1"></i> วันที่รับเข้าวัสดุ <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" name="transaction_date" x-model="batchDate" @change="fetchNextReceiptCode()" required class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                            <p class="text-[11px] text-emerald-700 mt-1">💡 สามารถเลือกวันที่ย้อนหลังได้ ระบบจะจัดลงสมุดบัญชีวัสดุตามปีงบประมาณให้อัตโนมัติ</p>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                                    <i class="fas fa-hashtag text-emerald-600 mr-1"></i> เลขที่เอกสารรับเข้า (เช่น ร 001/2569) <span class="text-red-500">*</span>
+                                </label>
+                                <button type="button" @click="fetchNextReceiptCode()" class="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center">
+                                    <i class="fas fa-sync-alt mr-1" :class="isFetchingCode ? 'fa-spin' : ''"></i> รันเลขถัดไป
+                                </button>
+                            </div>
+                            <input type="text" name="reference_doc" x-model="batchCode" required placeholder="เช่น ร 001/2569" class="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm">
+                            <p class="text-[11px] text-emerald-700 mt-1">สามารถแก้ไขเลขที่เอกสารได้ตามใบตรวจรับ/ใบส่งของจริง</p>
+                        </div>
+                    </div>
+
+                    <!-- Vendor & Note -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                                <i class="fas fa-store text-emerald-600 mr-1"></i> รับจาก (บริษัท / ร้านค้า / ผู้ส่งมอบ) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="party_name" x-model="batchVendor" list="saved_vendor_names" required placeholder="พิมพ์ชื่อร้านค้า หรือคลิกเลือกจากที่เคยบันทึก..." class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                            <datalist id="saved_vendor_names">
+                                @if(isset($pastVendors))
+                                    @foreach($pastVendors as $vName)
+                                        <option value="{{ $vName }}"></option>
+                                    @endforeach
+                                @endif
+                            </datalist>
+                            <p class="text-[11px] text-gray-500 mt-1">💡 ระบบจดจำชื่อร้านค้าที่เคยกรอกไว้ให้เลือกอัตโนมัติ</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                                <i class="fas fa-comment-alt text-emerald-600 mr-1"></i> หมายเหตุในสมุดบัญชีวัสดุ
+                            </label>
+                            <input type="text" name="note" x-model="batchNote" placeholder="เช่น รับวัสดุเข้าสต็อกคลังพัสดุ" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Items List -->
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                รายการวัสดุที่รับเข้าคลัง <span class="text-red-500">*</span>
+                                <span class="text-[11px] font-normal text-emerald-700 ml-2" x-text="'(' + batchItems.length + '/100 รายการ)'"></span>
+                            </label>
+                            <button type="button" @click="addBatchItem()" :disabled="batchItems.length >= 100" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
+                                <i class="fas fa-plus mr-1"></i> เพิ่มรายการวัสดุ
+                            </button>
+                        </div>
+
+                        <div class="space-y-3">
+                            <template x-for="(item, index) in batchItems" :key="item._uid">
+                                <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                                    <div class="md:col-span-6 flex items-center gap-2">
+                                        <span class="text-xs font-bold text-gray-400 w-5 text-center shrink-0" x-text="index + 1"></span>
+                                        <select :name="'items[' + index + '][material_id]'" x-model="item.material_id" @change="onSelectBatchMaterial(item)" required class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500">
+                                            <option value="">-- เลือกวัสดุ --</option>
+                                            @foreach($materials as $mat)
+                                                <option value="{{ $mat->id }}">
+                                                    [{{ $mat->material_code ?? 'MAT-' . sprintf('%04d', $mat->id) }}] {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div class="md:col-span-3">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[11px] font-bold text-gray-500 shrink-0">จำนวนรับ:</span>
+                                            <input type="number" :name="'items[' + index + '][quantity]'" x-model="item.quantity" min="1" required placeholder="จำนวน" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-center text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-500">
+                                        </div>
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[11px] font-bold text-gray-500 shrink-0">ราคา:</span>
+                                            <input type="number" step="0.01" min="0" :name="'items[' + index + '][unit_price]'" x-model="item.unit_price" placeholder="0.00" class="w-full px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500">
+                                        </div>
+                                    </div>
+
+                                    <div class="md:col-span-1 flex justify-end">
+                                        <button type="button" @click="removeBatchItem(index)" :disabled="batchItems.length === 1" class="text-gray-400 hover:text-rose-600 p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="mt-3 flex justify-center">
+                            <button type="button" @click="addBatchItem()" :disabled="batchItems.length >= 100" class="w-full py-2 border-2 border-dashed border-emerald-200 hover:border-emerald-400 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50/40 hover:bg-emerald-50 rounded-xl transition-all flex items-center justify-center">
+                                <i class="fas fa-plus mr-1.5"></i> เพิ่มรายการวัสดุแถวถัดไป
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                    <button type="button" @click="batchModalOpen = false" class="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm hover:bg-gray-100">ยกเลิก</button>
+                    <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl text-sm shadow-md hover:from-emerald-700 hover:to-teal-700 flex items-center">
+                        <i class="fas fa-save mr-2"></i> บันทึกรับเข้าคลังทันที
                     </button>
                 </div>
             </form>

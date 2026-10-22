@@ -120,14 +120,13 @@
                 
                 <div class="flex items-center space-x-4">
                     @php
-                        $unreadNotifications = \App\Models\Notification::where('user_id', auth()->id())
-                            ->where('is_read', false)
-                            ->latest()
-                            ->take(5)
-                            ->get();
-                        $unreadCount = \App\Models\Notification::where('user_id', auth()->id())
-                            ->where('is_read', false)
-                            ->count();
+                        $currentUser = auth()->user();
+                        $unreadQuery = \App\Models\Notification::where('user_id', $currentUser?->id)
+                            ->where('is_read', false);
+                        $unreadCount = (clone $unreadQuery)->count();
+                        $unreadNotifications = $unreadCount > 0
+                            ? $unreadQuery->latest()->take(5)->get()
+                            : collect();
                     @endphp
 
                     <!-- Notification Dropdown -->

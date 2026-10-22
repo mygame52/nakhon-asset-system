@@ -72,7 +72,140 @@ class MaterialReceiptController extends Controller
 
         $materials = Material::orderBy('name')->get();
 
-        return view('material_receipts.index', compact('receipts', 'stats', 'materials'));
+        // จดจำรายชื่อร้านค้า/ผู้ส่งมอบที่เคยบันทึกไว้ เพื่อให้พิมพ์หรือคลิกเลือกได้อย่างรวดเร็ว
+        $pastVendors = Transaction::where('transaction_type', 'in')
+            ->where('item_type', 'material')
+            ->whereNotNull('party_name')
+            ->whereNotIn('party_name', ['', 'ยอดยกมาเริ่มต้น', 'รับเข้าพัสดุเริ่มต้น', 'รับเข้าพัสดุครั้งแรก'])
+            ->distinct()
+            ->pluck('party_name')
+            ->merge(\App\Models\Vendor::pluck('name'))
+            ->unique()
+            ->filter()
+            ->values();
+
+        return view('material_receipts.index', compact('receipts', 'stats', 'materials', 'pastVendors'));
+    }
+
+    /**
+     * Get the next collision-free receipt document code (ร XXX/YYYY) by fiscal year.
+     */
+    public function getNextCode(Request $request)
+    {
+        $dateStr = $request->input('date', now()->toDateString());
+        $date = \Carbon\Carbon::parse($dateStr);
+        $yearBE = $date->month >= 10 ? ($date->year + 543 + 1) : ($date->year + 543);
+
+        $seq = 1;
+        do {
+            $candidateSpace = sprintf('ร %03d/%d', $seq, $yearBE);
+            $candidateDot = sprintf('ร.%03d/%d', $seq, $yearBE);
+            $exists = Transaction::where('transaction_type', 'in')
+                ->where('item_type', 'material')
+                ->whereIn('reference_doc', [$candidateSpace, $candidateDot])
+                ->exists();
+            if ($exists) {
+                $seq++;
+            }
+        } while ($exists);
+
+        return response()->json([
+            'success' => true,
+            'code' => $candidateSpace,
+            'year_be' => $yearBE,
+        ]);
+    }
+
+    /**
+     * Store batch inward material receipts (บันทึกรับวัสดุเข้าคลังหลายรายการในบิลเดียว).
+     */
+    public function storeBatch(Request $request)
+    {
+        $validated = $request->validate([
+            'transaction_date'    => 'required|date',
+            'party_name'          => 'required|string|max:255',
+            'reference_doc'       => 'nullable|string|max:255',
+            'note'                => 'nullable|string|max:1000',
+            'items'               => 'required|array|min:1|max:100',
+            'items.*.material_id' => 'required|exists:materials,id',
+            'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.unit_price'  => 'nullable|numeric|min:0',
+        ], [
+            'transaction_date.required'    => 'กรุณาระบุวันที่รับเข้าวัสดุ',
+            'party_name.required'          => 'กรุณาระบุชื่อร้านค้า/บริษัท/ผู้ส่งมอบ',
+            'items.min'                    => 'กรุณาเลือกรายการวัสดุอย่างน้อย 1 รายการ',
+            'items.max'                    => 'สามารถบันทึกรับเข้าได้สูงสุด 100 รายการต่อครั้ง',
+            'items.*.material_id.required' => 'กรุณาเลือกรายการวัสดุ',
+            'items.*.quantity.min'         => 'จำนวนรับเข้าต้องมีค่าอย่างน้อย 1',
+        ]);
+
+        $materialIds = array_column($validated['items'], 'material_id');
+        if (count($materialIds) !== count(array_unique($materialIds))) {
+            return back()->withInput()->with('error', 'พบรายการวัสดุซ้ำกันในบิลเดียว กรุณารวมเป็นแถวเดียว');
+        }
+
+        $txDate = \Carbon\Carbon::parse($validated['transaction_date']);
+        $yearBE = $txDate->month >= 10 ? ($txDate->year + 543 + 1) : ($txDate->year + 543);
+
+        $refDoc = trim($validated['reference_doc'] ?? '');
+        if (empty($refDoc)) {
+            $seq = 1;
+            do {
+                $candidateSpace = sprintf('ร %03d/%d', $seq, $yearBE);
+                $candidateDot = sprintf('ร.%03d/%d', $seq, $yearBE);
+                $exists = Transaction::where('transaction_type', 'in')
+                    ->where('item_type', 'material')
+                    ->whereIn('reference_doc', [$candidateSpace, $candidateDot])
+                    ->exists();
+                if ($exists) {
+                    $seq++;
+                }
+            } while ($exists);
+            $refDoc = $candidateSpace;
+        }
+
+        $partyName = trim($validated['party_name']);
+        $note = !empty(trim($validated['note'] ?? '')) ? trim($validated['note']) : 'รับวัสดุเข้าสต็อกคลังพัสดุ';
+
+        DB::transaction(function () use ($validated, $txDate, $refDoc, $partyName, $note) {
+            foreach ($validated['items'] as $itemData) {
+                $material = Material::lockForUpdate()->findOrFail($itemData['material_id']);
+                $qty = (int) $itemData['quantity'];
+                $unitPrice = (isset($itemData['unit_price']) && $itemData['unit_price'] !== '')
+                    ? (float) $itemData['unit_price']
+                    : $material->unit_price;
+
+                $material->stock_qty += $qty;
+                if ($unitPrice !== null) {
+                    $material->unit_price = $unitPrice;
+                }
+                $material->save();
+
+                Transaction::create([
+                    'transaction_type' => 'in',
+                    'item_type'        => 'material',
+                    'item_id'          => $material->id,
+                    'quantity'         => $qty,
+                    'unit_price'       => $unitPrice,
+                    'user_id'          => Auth::id(),
+                    'party_name'       => $partyName,
+                    'reference_doc'    => $refDoc,
+                    'note'             => $note,
+                    'transaction_date' => $txDate->toDateString(),
+                    'status'           => 'completed',
+                ]);
+            }
+
+            ActivityLog::log(
+                'stock_in_batch',
+                'material_stock',
+                "บันทึกรับวัสดุเข้าคลังตามเอกสาร {$refDoc} จาก ({$partyName}) รวม " . count($validated['items']) . " รายการ",
+                null
+            );
+        });
+
+        return redirect()->route('material-receipts.index')
+            ->with('success', "บันทึกรับวัสดุเข้าคลังเลขที่เอกสาร {$refDoc} จำนวน " . count($validated['items']) . " รายการ เรียบร้อยแล้ว");
     }
 
     /**

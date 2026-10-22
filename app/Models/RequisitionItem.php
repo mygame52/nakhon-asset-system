@@ -19,6 +19,8 @@ class RequisitionItem extends Model
         'admin_note',
         'approved_by',
         'approved_at',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [

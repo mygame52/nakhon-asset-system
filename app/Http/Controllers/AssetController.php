@@ -74,113 +74,134 @@ class AssetController extends Controller
 
         try {
             $rows = json_decode($request->input('payload'), true);
-
-            foreach ($rows as $row) {
-                $purchaseDateRaw = $row[0] ?? null;
-                $assetCode = $row[1] ?? null;
-                $categoryName = $row[2] ?? null;
-                $model = $row[3] ?? null;
-                $name = $row[4] ?? null;
-                $unitPriceRaw = $row[5] ?? 0;
-                $acquisitionType = $row[6] ?? null;
-                $departmentName = $row[7] ?? null;
-                $locationName = $row[8] ?? null;
-                $status = $row[9] ?? 'ใช้งานปกติ';
-                
-                if (empty($assetCode) || empty($name)) {
-                    continue;
-                }
-
-                $purchaseDate = null;
-                $rawDate = trim($purchaseDateRaw);
-                if (!empty($rawDate) && $rawDate !== '-') {
-                    try {
-                        if (is_numeric($rawDate)) {
-                            $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($rawDate);
-                            if ((int)$dateObj->format('Y') > 2500) {
-                                $dateObj->modify('-543 years');
-                            }
-                            $purchaseDate = $dateObj->format('Y-m-d');
-                        } else {
-                            preg_match_all('/\d+/', $rawDate, $matches);
-                            $numbers = $matches[0];
-                            if (count($numbers) > 0) {
-                                $day = 1; $month = 1; $year = 0;
-                                if (count($numbers) >= 3) {
-                                    if ((int)$numbers[0] > 1000) {
-                                        $year = (int)$numbers[0];
-                                        $month = (int)$numbers[1];
-                                        $day = (int)$numbers[2];
-                                    } else {
-                                        $day = (int)$numbers[0];
-                                        $month = (int)$numbers[1];
-                                        $year = (int)$numbers[2];
-                                    }
-                                } elseif (count($numbers) == 2) {
-                                    $month = (int)$numbers[0];
-                                    $year = (int)$numbers[1];
-                                } else {
-                                    $year = (int)$numbers[0];
-                                }
-
-                                if ($day < 1 || $day > 31) $day = 1;
-                                if ($month < 1 || $month > 12) $month = 1;
-                                
-                                if ($year > 0 && $year < 100) {
-                                    $year += ($year >= 50) ? 2500 : 2000;
-                                }
-                                if ($year > 2400) {
-                                    $year -= 543;
-                                }
-
-                                if ($year > 1900 && $year < 2200) {
-                                    $purchaseDate = sprintf('%04d-%02d-%02d', $year, $month, $day);
-                                }
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        $purchaseDate = null;
-                    }
-                }
-
-                $locationId = null;
-                if (!empty($locationName) && $locationName !== '-') {
-                    $loc = Location::firstOrCreate(['name' => trim($locationName)]);
-                    $locationId = $loc->id;
-                }
-
-                $departmentId = null;
-                if (!empty($departmentName) && $departmentName !== '-') {
-                    $dept = Department::firstOrCreate(['name' => trim($departmentName)]);
-                    $departmentId = $dept->id;
-                }
-
-                $categoryId = null;
-                if (!empty($categoryName) && $categoryName !== '-') {
-                    $cat = Category::firstOrCreate(['name' => trim($categoryName)]);
-                    $categoryId = $cat->id;
-                }
-
-                $asset = Asset::withTrashed()->firstOrNew(['asset_code' => $assetCode]);
-                
-                $asset->fill([
-                    'name'             => $name,
-                    'category_id'      => $categoryId,
-                    'model'            => $model,
-                    'purchase_date'    => $purchaseDate,
-                    'acquisition_type' => $acquisitionType,
-                    'location_id'      => $locationId,
-                    'department_id'    => $departmentId,
-                    'unit_price'       => is_numeric($unitPriceRaw) ? floatval($unitPriceRaw) : 0,
-                    'status'           => $status,
-                ]);
-
-                if ($asset->trashed()) {
-                    $asset->restore();
-                }
-
-                $asset->save();
+            if (!is_array($rows)) {
+                return redirect()->route('assets.index')->with('error', 'รูปแบบข้อมูลนำเข้าไม่ถูกต้อง');
             }
+
+            \Illuminate\Support\Facades\DB::transaction(function () use ($rows) {
+                $locationCache = [];
+                $departmentCache = [];
+                $categoryCache = [];
+
+                foreach ($rows as $row) {
+                    $purchaseDateRaw = $row[0] ?? null;
+                    $assetCode = $row[1] ?? null;
+                    $categoryName = $row[2] ?? null;
+                    $model = $row[3] ?? null;
+                    $name = $row[4] ?? null;
+                    $unitPriceRaw = $row[5] ?? 0;
+                    $acquisitionType = $row[6] ?? null;
+                    $departmentName = $row[7] ?? null;
+                    $locationName = $row[8] ?? null;
+                    $status = $row[9] ?? 'ใช้งานปกติ';
+                    
+                    if (empty($assetCode) || empty($name)) {
+                        continue;
+                    }
+
+                    $purchaseDate = null;
+                    $rawDate = trim($purchaseDateRaw);
+                    if (!empty($rawDate) && $rawDate !== '-') {
+                        try {
+                            if (is_numeric($rawDate)) {
+                                $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($rawDate);
+                                if ((int)$dateObj->format('Y') > 2500) {
+                                    $dateObj->modify('-543 years');
+                                }
+                                $purchaseDate = $dateObj->format('Y-m-d');
+                            } else {
+                                preg_match_all('/\d+/', $rawDate, $matches);
+                                $numbers = $matches[0];
+                                if (count($numbers) > 0) {
+                                    $day = 1; $month = 1; $year = 0;
+                                    if (count($numbers) >= 3) {
+                                        if ((int)$numbers[0] > 1000) {
+                                            $year = (int)$numbers[0];
+                                            $month = (int)$numbers[1];
+                                            $day = (int)$numbers[2];
+                                        } else {
+                                            $day = (int)$numbers[0];
+                                            $month = (int)$numbers[1];
+                                            $year = (int)$numbers[2];
+                                        }
+                                    } elseif (count($numbers) == 2) {
+                                        $month = (int)$numbers[0];
+                                        $year = (int)$numbers[1];
+                                    } else {
+                                        $year = (int)$numbers[0];
+                                    }
+
+                                    if ($day < 1 || $day > 31) $day = 1;
+                                    if ($month < 1 || $month > 12) $month = 1;
+                                    
+                                    if ($year > 0 && $year < 100) {
+                                        $year += ($year >= 50) ? 2500 : 2000;
+                                    }
+                                    if ($year > 2400) {
+                                        $year -= 543;
+                                    }
+
+                                    if ($year > 1900 && $year < 2200) {
+                                        $purchaseDate = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                                    }
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            $purchaseDate = null;
+                        }
+                    }
+
+                    $locationId = null;
+                    if (!empty($locationName) && $locationName !== '-') {
+                        $locKey = trim($locationName);
+                        if (!isset($locationCache[$locKey])) {
+                            $loc = Location::firstOrCreate(['name' => $locKey]);
+                            $locationCache[$locKey] = $loc->id;
+                        }
+                        $locationId = $locationCache[$locKey];
+                    }
+
+                    $departmentId = null;
+                    if (!empty($departmentName) && $departmentName !== '-') {
+                        $deptKey = trim($departmentName);
+                        if (!isset($departmentCache[$deptKey])) {
+                            $dept = Department::firstOrCreate(['name' => $deptKey]);
+                            $departmentCache[$deptKey] = $dept->id;
+                        }
+                        $departmentId = $departmentCache[$deptKey];
+                    }
+
+                    $categoryId = null;
+                    if (!empty($categoryName) && $categoryName !== '-') {
+                        $catKey = trim($categoryName);
+                        if (!isset($categoryCache[$catKey])) {
+                            $cat = Category::firstOrCreate(['name' => $catKey], ['type' => 'asset']);
+                            $categoryCache[$catKey] = $cat->id;
+                        }
+                        $categoryId = $categoryCache[$catKey];
+                    }
+
+                    $asset = Asset::withTrashed()->firstOrNew(['asset_code' => $assetCode]);
+                    
+                    $asset->fill([
+                        'name'             => $name,
+                        'category_id'      => $categoryId,
+                        'model'            => $model,
+                        'purchase_date'    => $purchaseDate,
+                        'acquisition_type' => $acquisitionType,
+                        'location_id'      => $locationId,
+                        'department_id'    => $departmentId,
+                        'unit_price'       => is_numeric($unitPriceRaw) ? floatval($unitPriceRaw) : 0,
+                        'status'           => $status,
+                    ]);
+
+                    if ($asset->trashed()) {
+                        $asset->restore();
+                    }
+
+                    $asset->save();
+                }
+            });
 
             // Cleanup temp file if tracking
             if ($request->filled('path')) {

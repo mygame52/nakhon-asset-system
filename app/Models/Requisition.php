@@ -15,6 +15,8 @@ class Requisition extends Model
         'department_id',
         'status',
         'reason_for_request',
+        'created_at',
+        'updated_at',
     ];
 
     public function getRequesterDisplayNameAttribute(): string

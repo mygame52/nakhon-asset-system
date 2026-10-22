@@ -27,6 +27,8 @@ class Transaction extends Model
         'edited_by',
         'edited_at',
         'edit_reason',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
@@ -52,7 +54,7 @@ class Transaction extends Model
 
     public function material(): BelongsTo
     {
-        return $this->belongsTo(Material::class, 'item_id');
+        return $this->belongsTo(Material::class, 'item_id')->withTrashed();
     }
 
     public function item()

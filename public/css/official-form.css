@@ -79,6 +79,15 @@ body.print-document {
     background-color: #fff;
 }
 
+.official-table thead {
+    display: table-header-group;
+}
+
+.official-table tr.row-item {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
 .official-table tr.row-item td {
     height: 25px;
 }
@@ -95,6 +104,8 @@ body.print-document {
     justify-content: space-between;
     font-size: 14pt;
     line-height: 1.4;
+    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
 .footer-left {

@@ -40,7 +40,7 @@
     items: @js($initialItems),
     defaultStatus: '{{ $defaultItemStatus }}',
     addItem() {
-        if (this.items.length < 20) {
+        if (this.items.length < 100) {
             this.items.push({
                 _uid: 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                 material_id: '',
@@ -49,6 +49,8 @@
                 status: this.defaultStatus,
                 note: ''
             });
+        } else {
+            alert('สามารถเพิ่มรายการวัสดุได้สูงสุด 100 รายการต่อ 1 ใบเบิก');
         }
     },
     removeItem(index) {
@@ -278,6 +280,13 @@
                             @endif
                         </div>
                     </template>
+                </div>
+
+                <div class="pt-1 flex justify-center">
+                    <button type="button" @click="addItem()" :disabled="items.length >= 100" :class="{'opacity-50 cursor-not-allowed': items.length >= 100}"
+                            class="w-full py-2.5 border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/40 hover:bg-purple-50 text-purple-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center">
+                        <i class="fas fa-plus mr-1.5"></i> เพิ่มรายการวัสดุแถวถัดไป (<span x-text="items.length"></span>/100 รายการ)
+                    </button>
                 </div>
             </div>
 

@@ -16,10 +16,10 @@
     directReason: '',
     isFetchingCode: false,
     addItem() {
-        if (this.reqItems.length < 10) {
+        if (this.reqItems.length < 100) {
             this.reqItems.push({ material_id: '', requested_qty: 1 });
         } else {
-            alert('ใบเบิกพัสดุ 1 ใบ สามารถขอเบิกได้สูงสุด 10 รายการเท่านั้น');
+            alert('ใบเบิกพัสดุ 1 ใบ สามารถขอเบิกได้สูงสุด 100 รายการ');
         }
     },
     removeItem(index) {
@@ -28,10 +28,10 @@
         }
     },
     addDirectItem() {
-        if (this.directItems.length < 20) {
+        if (this.directItems.length < 100) {
             this.directItems.push({ material_id: '', quantity: 1 });
         } else {
-            alert('บันทึกตัดจ่ายได้สูงสุด 20 รายการต่อ 1 ใบ');
+            alert('บันทึกตัดจ่ายได้สูงสุด 100 รายการต่อ 1 ใบ');
         }
     },
     removeDirectItem(index) {
@@ -313,9 +313,9 @@
                                 <div class="flex items-center justify-between mb-3">
                                     <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                                         รายการวัสดุที่ต้องการขอเบิก <span class="text-red-500">*</span>
-                                        <span class="text-[11px] font-normal text-purple-600 ml-2" x-text="'(' + reqItems.length + '/10 รายการ)'"></span>
+                                        <span class="text-[11px] font-normal text-purple-600 ml-2" x-text="'(' + reqItems.length + '/100 รายการ)'"></span>
                                     </label>
-                                    <button type="button" @click="addItem()" :disabled="reqItems.length >= 10" :class="{'opacity-50 cursor-not-allowed': reqItems.length >= 10}" class="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
+                                    <button type="button" @click="addItem()" :disabled="reqItems.length >= 100" :class="{'opacity-50 cursor-not-allowed': reqItems.length >= 100}" class="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
                                         <i class="fas fa-plus mr-1"></i> เพิ่มรายการวัสดุ
                                     </button>
                                 </div>
@@ -323,12 +323,13 @@
                                 <div class="space-y-3">
                                     <template x-for="(item, index) in reqItems" :key="index">
                                         <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3">
+                                            <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="index + 1"></span>
                                             <div class="flex-1">
                                                 <select :name="'items[' + index + '][material_id]'" x-model="item.material_id" required class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500">
                                                     <option value="">-- เลือกวัสดุ --</option>
                                                     @foreach($materials as $mat)
-                                                        <option value="{{ $mat->id }}">
-                                                            {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }})
+                                                        <option value="{{ $mat->id }}" {{ $mat->stock_qty <= 0 ? 'disabled' : '' }}>
+                                                            [{{ $mat->material_code ?? 'MAT-' . sprintf('%04d', $mat->id) }}] {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }}{{ $mat->stock_qty <= 0 ? ' - สต็อกหมด' : '' }})
                                                         </option>
                                                     @endforeach
                                                 </select>
@@ -343,6 +344,12 @@
                                             </button>
                                         </div>
                                     </template>
+                                </div>
+
+                                <div class="mt-3 flex justify-center">
+                                    <button type="button" @click="addItem()" :disabled="reqItems.length >= 100" :class="{'opacity-50 cursor-not-allowed': reqItems.length >= 100}" class="w-full py-2 border-2 border-dashed border-purple-200 hover:border-purple-400 text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50/40 hover:bg-purple-50 rounded-xl transition-all flex items-center justify-center">
+                                        <i class="fas fa-plus mr-1.5"></i> เพิ่มรายการวัสดุแถวถัดไป
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -444,9 +451,9 @@
                                 <div class="flex items-center justify-between mb-3">
                                     <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                                         รายการวัสดุที่จ่ายจริง <span class="text-red-500">*</span>
-                                        <span class="text-[11px] font-normal text-emerald-700 ml-2" x-text="'(' + directItems.length + '/20 รายการ)'"></span>
+                                        <span class="text-[11px] font-normal text-emerald-700 ml-2" x-text="'(' + directItems.length + '/100 รายการ)'"></span>
                                     </label>
-                                    <button type="button" @click="addDirectItem()" :disabled="directItems.length >= 20" :class="{'opacity-50 cursor-not-allowed': directItems.length >= 20}" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
+                                    <button type="button" @click="addDirectItem()" :disabled="directItems.length >= 100" :class="{'opacity-50 cursor-not-allowed': directItems.length >= 100}" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all flex items-center">
                                         <i class="fas fa-plus mr-1"></i> เพิ่มรายการวัสดุ
                                     </button>
                                 </div>
@@ -454,12 +461,13 @@
                                 <div class="space-y-3">
                                     <template x-for="(item, index) in directItems" :key="index">
                                         <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3">
+                                            <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="index + 1"></span>
                                             <div class="flex-1">
                                                 <select :name="'items[' + index + '][material_id]'" x-model="item.material_id" required class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500">
                                                     <option value="">-- เลือกวัสดุ --</option>
                                                     @foreach($materials as $mat)
-                                                        <option value="{{ $mat->id }}">
-                                                            {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }})
+                                                        <option value="{{ $mat->id }}" {{ $mat->stock_qty <= 0 ? 'disabled' : '' }}>
+                                                            [{{ $mat->material_code ?? 'MAT-' . sprintf('%04d', $mat->id) }}] {{ $mat->name }} (คงเหลือ: {{ number_format($mat->stock_qty) }} {{ $mat->unit }}{{ $mat->stock_qty <= 0 ? ' - สต็อกหมด' : '' }})
                                                         </option>
                                                     @endforeach
                                                 </select>
@@ -474,6 +482,12 @@
                                             </button>
                                         </div>
                                     </template>
+                                </div>
+
+                                <div class="mt-3 flex justify-center">
+                                    <button type="button" @click="addDirectItem()" :disabled="directItems.length >= 100" :class="{'opacity-50 cursor-not-allowed': directItems.length >= 100}" class="w-full py-2 border-2 border-dashed border-emerald-200 hover:border-emerald-400 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50/40 hover:bg-emerald-50 rounded-xl transition-all flex items-center justify-center">
+                                        <i class="fas fa-plus mr-1.5"></i> เพิ่มรายการวัสดุแถวถัดไป
+                                    </button>
                                 </div>
                             </div>
 

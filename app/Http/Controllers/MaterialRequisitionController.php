@@ -18,6 +18,8 @@ class MaterialRequisitionController extends Controller
 {
     public function index(Request $request)
     {
+        $this->syncBackdatedRequisitionDates();
+
         $user = Auth::user();
         $status = $request->input('status');
         $search = $request->input('search');
@@ -56,7 +58,7 @@ class MaterialRequisitionController extends Controller
         }
 
         $requisitions = $query->latest()->paginate(15)->withQueryString();
-        $materials = Material::where('stock_qty', '>', 0)->orderBy('name', 'asc')->get();
+        $materials = Material::orderByRaw('CASE WHEN stock_qty > 0 THEN 0 ELSE 1 END')->orderBy('name', 'asc')->get();
         $departments = Department::orderBy('name', 'asc')->get();
 
         // Remember past requesters for smart autocomplete
@@ -72,16 +74,53 @@ class MaterialRequisitionController extends Controller
         return view('requisitions.index', compact('requisitions', 'materials', 'departments', 'pastRequesters'));
     }
 
+    /**
+     * ซิงค์วันที่ใบเบิก (created_at) ของใบเบิกย้อนหลังที่มีอยู่ในระบบ ให้ตรงกับวันที่ตัดจ่ายในสมุดบัญชีวัสดุ (transaction_date) อัตโนมัติ
+     */
+    private function syncBackdatedRequisitionDates(): void
+    {
+        $approvedReqs = Requisition::where('status', 'approved')
+            ->select('id', 'requisition_code', 'created_at')
+            ->get();
+
+        if ($approvedReqs->isEmpty()) {
+            return;
+        }
+
+        $txDates = Transaction::where('transaction_type', 'out')
+            ->where('item_type', 'material')
+            ->whereIn('reference_doc', $approvedReqs->pluck('requisition_code'))
+            ->whereNotNull('transaction_date')
+            ->pluck('transaction_date', 'reference_doc');
+
+        foreach ($approvedReqs as $req) {
+            $txDate = $txDates[$req->requisition_code] ?? null;
+            if ($txDate) {
+                $txDateStr = Carbon::parse($txDate)->toDateString();
+                $reqDateStr = $req->created_at ? $req->created_at->toDateString() : '';
+                if ($txDateStr !== $reqDateStr) {
+                    $parsedDate = Carbon::parse($txDateStr);
+                    Requisition::where('id', $req->id)->update(['created_at' => $parsedDate]);
+                    RequisitionItem::where('requisition_id', $req->id)->update([
+                        'created_at' => $parsedDate,
+                        'approved_at' => $parsedDate,
+                        'officer_approved_at' => $parsedDate,
+                    ]);
+                }
+            }
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'reason_for_request' => 'required|string|max:1000',
             'requisition_date' => 'nullable|date',
-            'items' => 'required|array|min:1|max:10',
+            'items' => 'required|array|min:1|max:100',
             'items.*.material_id' => 'required|exists:materials,id',
             'items.*.requested_qty' => 'required|integer|min:1',
         ], [
-            'items.max' => 'ใบเบิกพัสดุ 1 ใบ สามารถขอเบิกได้สูงสุด 10 รายการเท่านั้น',
+            'items.max' => 'ใบเบิกพัสดุ 1 ใบ สามารถขอเบิกได้สูงสุด 100 รายการ',
             'items.min' => 'กรุณาเลือกรายการวัสดุอย่างน้อย 1 รายการ',
         ]);
 
@@ -96,14 +135,16 @@ class MaterialRequisitionController extends Controller
         // Determine Requisition Date (Backdated Support)
         $reqDate = !empty($validated['requisition_date']) ? Carbon::parse($validated['requisition_date']) : now();
 
-        // Generate Collision-Free Code: จ.XXX/YYYY (e.g. จ.001/2569)
-        $yearBE = $reqDate->year + 543;
-        $seq = Requisition::where('requisition_code', 'LIKE', "%/{$yearBE}")->count() + 1;
-        $reqCode = 'จ.' . sprintf('%03d', $seq) . '/' . $yearBE;
-        while (Requisition::where('requisition_code', $reqCode)->exists()) {
-            $seq++;
-            $reqCode = 'จ.' . sprintf('%03d', $seq) . '/' . $yearBE;
-        }
+        // Generate Collision-Free Code by Fiscal Year (1 Oct): จ.XXX/YYYY (e.g. จ.001/2569)
+        $yearBE = $reqDate->month >= 10 ? ($reqDate->year + 543 + 1) : ($reqDate->year + 543);
+        $seq = 1;
+        do {
+            $reqCode = sprintf('จ.%03d/%d', $seq, $yearBE);
+            $exists = Requisition::where('requisition_code', $reqCode)->exists();
+            if ($exists) {
+                $seq++;
+            }
+        } while ($exists);
 
         DB::transaction(function () use ($validated, $user, $reqCode, $reqDate) {
             $requisition = Requisition::create([
@@ -183,7 +224,7 @@ class MaterialRequisitionController extends Controller
             'requester_name' => 'required|string|max:255',
             'department_id' => 'nullable|exists:departments,id',
             'reason_for_request' => 'nullable|string|max:1000',
-            'items' => 'required|array|min:1|max:20',
+            'items' => 'required|array|min:1|max:100',
             'items.*.material_id' => 'required|exists:materials,id',
             'items.*.quantity' => 'required|integer|min:1',
         ], [
@@ -191,6 +232,7 @@ class MaterialRequisitionController extends Controller
             'requisition_date.required' => 'กรุณาระบุวันที่ขอเบิก/ตัดจ่ายพัสดุ',
             'requester_name.required' => 'กรุณาระบุชื่อผู้ขอเบิก',
             'items.min' => 'กรุณาเลือกรายการวัสดุอย่างน้อย 1 รายการ',
+            'items.max' => 'บันทึกตัดจ่ายได้สูงสุด 100 รายการต่อ 1 ใบเบิก',
             'items.*.material_id.required' => 'กรุณาเลือกวัสดุ',
             'items.*.quantity.min' => 'จำนวนที่จ่ายต้องมีค่าอย่างน้อย 1',
         ]);
@@ -290,6 +332,9 @@ class MaterialRequisitionController extends Controller
 
     public function show(Requisition $requisition)
     {
+        $this->syncBackdatedRequisitionDates();
+        $requisition->refresh();
+
         $user = Auth::user();
 
         if (!$user->hasAnyRole(['admin', 'procurement']) && $requisition->user_id !== $user->id) {
@@ -303,6 +348,9 @@ class MaterialRequisitionController extends Controller
 
     public function edit(Requisition $requisition)
     {
+        $this->syncBackdatedRequisitionDates();
+        $requisition->refresh();
+
         $user = Auth::user();
         $isStaff = $user->hasAnyRole(['admin', 'procurement']);
 
@@ -350,7 +398,7 @@ class MaterialRequisitionController extends Controller
         $rules = [
             'requisition_date' => 'required|date',
             'reason_for_request' => 'nullable|string|max:1000',
-            'items' => 'required|array|min:1|max:20',
+            'items' => 'required|array|min:1|max:100',
             'items.*.material_id' => 'required|exists:materials,id',
             'items.*.requested_qty' => 'required|integer|min:1',
         ];
@@ -826,6 +874,9 @@ class MaterialRequisitionController extends Controller
 
     public function print(Requisition $requisition)
     {
+        $this->syncBackdatedRequisitionDates();
+        $requisition->refresh();
+
         $user = Auth::user();
         if (!$user->hasAnyRole(['admin', 'procurement']) && $requisition->user_id !== $user->id) {
             abort(403);

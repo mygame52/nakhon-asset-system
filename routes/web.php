@@ -57,8 +57,10 @@ Route::middleware(['auth'])->group(function () {
         Route::put('stock-cards/transactions/{transaction}', [\App\Http\Controllers\MaterialStockCardController::class, 'updateTransaction'])->name('stock-cards.transactions.update');
         Route::delete('stock-cards/transactions/{transaction}', [\App\Http\Controllers\MaterialStockCardController::class, 'destroyTransaction'])->name('stock-cards.transactions.destroy');
 
-        // Material Receipts (รายการรับวัสดุเข้าคลัง - ดูประวัติ/แก้ไข/ลบพร้อมเหตุผล)
+        // Material Receipts (รายการรับวัสดุเข้าคลัง - ดูประวัติ/บันทึกรับหลายรายการ/แก้ไข/ลบพร้อมเหตุผล)
         Route::get('material-receipts', [\App\Http\Controllers\MaterialReceiptController::class, 'index'])->name('material-receipts.index');
+        Route::get('material-receipts/next-code', [\App\Http\Controllers\MaterialReceiptController::class, 'getNextCode'])->name('material-receipts.next-code');
+        Route::post('material-receipts/batch', [\App\Http\Controllers\MaterialReceiptController::class, 'storeBatch'])->name('material-receipts.store-batch');
         Route::put('material-receipts/{material_receipt}', [\App\Http\Controllers\MaterialReceiptController::class, 'update'])->name('material-receipts.update');
         Route::delete('material-receipts/{material_receipt}', [\App\Http\Controllers\MaterialReceiptController::class, 'destroy'])->name('material-receipts.destroy');
 
